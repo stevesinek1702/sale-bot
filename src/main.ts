@@ -138,6 +138,33 @@ app.delete('/api/accounts/:id', (c) => {
   return c.json({ success: removed });
 });
 
+// ─── Upload hình mời ───
+
+app.post('/api/upload-image', async (c) => {
+  try {
+    const formData = await c.req.formData();
+    const file = formData.get('image') as File;
+    if (!file) return c.json({ error: 'Không có file' }, 400);
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const imagesDir = './data/images';
+    if (!fs.existsSync(imagesDir)) fs.mkdirSync(imagesDir, { recursive: true });
+    fs.writeFileSync(`${imagesDir}/invite.jpg`, buffer);
+
+    return c.json({ success: true, message: 'Đã lưu hình invite.jpg', size: buffer.length });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// Xem hình hiện tại
+app.get('/api/invite-image', (c) => {
+  const imgPath = './data/images/invite.jpg';
+  if (!fs.existsSync(imgPath)) return c.json({ error: 'Chưa có hình' }, 404);
+  const buffer = fs.readFileSync(imgPath);
+  return new Response(buffer, { headers: { 'Content-Type': 'image/jpeg' } });
+});
+
 // ─── Config ───
 
 app.get('/api/config', (c) => c.json(config));
@@ -281,6 +308,13 @@ a{color:#667eea;font-weight:600}
 <div id="al"></div>
 </div>
 <div class="sec">
+<h2>🖼️ Hình mời vào group</h2>
+<input type="file" id="imgFile" accept="image/*" style="margin-bottom:8px">
+<button onclick="uploadImg()">Upload hình</button>
+<div id="imgSt"></div>
+<div id="imgPrev" style="margin-top:12px;text-align:center"></div>
+</div>
+<div class="sec">
 <h2>⚙️ Workers</h2>
 <button onclick="loadW()">Xem trạng thái</button>
 <div id="ws"></div>
@@ -321,5 +355,25 @@ async function loadW(){
     }else d.innerHTML='<div class="st">Chưa có worker</div>';
   }catch(e){d.innerHTML='<div class="st e">❌ '+e.message+'</div>'}
 }
+async function uploadImg(){
+  const f=document.getElementById('imgFile').files[0];
+  if(!f){alert('Chọn hình trước');return}
+  const d=document.getElementById('imgSt');
+  d.className='st l';d.innerHTML='⏳ Đang upload...';
+  try{
+    const fd=new FormData();fd.append('image',f);
+    const r=await fetch(U+'/api/upload-image',{method:'POST',body:fd});
+    const j=await r.json();
+    if(j.success){
+      d.className='st s';d.innerHTML='✅ '+j.message+' ('+Math.round(j.size/1024)+'KB)';
+      loadInviteImg();
+    }else throw new Error(j.error);
+  }catch(e){d.className='st e';d.innerHTML='❌ '+e.message}
+}
+function loadInviteImg(){
+  const d=document.getElementById('imgPrev');
+  d.innerHTML='<img src="'+U+'/api/invite-image?t='+Date.now()+'" style="max-width:100%;max-height:300px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.15)" onerror="this.parentElement.innerHTML=\\'<span style=color:#999>Chưa có hình</span>\\'">';
+}
+loadInviteImg();
 </script></body></html>`;
 }
