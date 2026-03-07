@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import { Hono } from 'hono';
-import { accounts } from './account.js';
+import { accounts, exportAllCredentials } from './account.js';
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
 import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus } from './worker.js';
 import { registerListeners } from './listener.js';
@@ -140,6 +140,17 @@ app.delete('/api/accounts/:id', (c) => {
 });
 
 // ─── Upload hình mời ───
+
+// Lấy credentials base64 để lưu vào Render env var
+app.get('/api/credentials', (c) => {
+  const base64 = exportAllCredentials();
+  const count = accounts.count();
+  return c.json({
+    count,
+    credentials: base64,
+    instruction: 'Copy giá trị credentials → Render Dashboard → Environment → thêm ZALO_CREDENTIALS = <giá trị>',
+  });
+});
 
 app.post('/api/upload-image', async (c) => {
   try {
@@ -325,6 +336,13 @@ a{color:#667eea;font-weight:600}
 <button onclick="loadW()">Xem trạng thái</button>
 <div id="ws"></div>
 </div>
+<div class="sec">
+<h2>🔑 Lưu đăng nhập (Persist)</h2>
+<button onclick="getCreds()">Lấy Credentials</button>
+<div id="credSt"></div>
+<textarea id="credVal" style="width:100%;height:80px;margin-top:8px;font-size:12px;border:2px solid #e0e0e0;border-radius:8px;padding:8px;display:none" readonly></textarea>
+<p style="font-size:12px;color:#999;margin-top:4px">Copy giá trị trên → Render → Environment → ZALO_CREDENTIALS</p>
+</div>
 </div>
 <script>
 const U=location.origin;
@@ -381,5 +399,17 @@ function loadInviteImg(){
   d.innerHTML='<img src="'+U+'/api/invite-image?t='+Date.now()+'" style="max-width:100%;max-height:300px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.15)" onerror="this.parentElement.innerHTML=\\'<span style=color:#999>Chưa có hình</span>\\'">';
 }
 loadInviteImg();
+async function getCreds(){
+  const d=document.getElementById('credSt');
+  const t=document.getElementById('credVal');
+  d.className='st l';d.innerHTML='⏳ Đang lấy...';
+  try{
+    const r=await fetch(U+'/api/credentials');const j=await r.json();
+    if(j.count>0){
+      d.className='st s';d.innerHTML='✅ '+j.count+' account(s). Copy giá trị bên dưới:';
+      t.style.display='block';t.value=j.credentials;t.select();
+    }else{d.className='st e';d.innerHTML='❌ Chưa có account nào. Login trước!'}
+  }catch(e){d.className='st e';d.innerHTML='❌ '+e.message}
+}
 </script></body></html>`;
 }
