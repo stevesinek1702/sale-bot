@@ -23,6 +23,20 @@ const app = new Hono();
 const port = Number(process.env.PORT) || 3000;
 const startTime = Date.now();
 
+// CORS middleware - cho phép gọi API từ mọi nơi
+app.use('*', async (c, next) => {
+  await next();
+  c.res.headers.set('Access-Control-Allow-Origin', '*');
+  c.res.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  c.res.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+});
+app.options('*', (c) => new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }));
+
+// Dashboard HTML
+app.get('/dashboard', (c) => {
+  return c.html(getDashboardHtml());
+});
+
 // Health check
 app.get('/', (c) => {
   const uptime = Math.floor((Date.now() - startTime) / 1000);
@@ -221,3 +235,91 @@ main().catch(err => {
   console.error('❌ Lỗi khởi động:', err);
   process.exit(1);
 });
+
+function getDashboardHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sale Bot BĐS - Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.c{background:#fff;border-radius:20px;padding:40px;max-width:600px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+h1{color:#333;margin-bottom:8px;font-size:28px}
+.sub{color:#666;margin-bottom:24px}
+.sec{margin-bottom:28px}
+.sec h2{font-size:17px;color:#555;margin-bottom:12px}
+btn,button{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;width:100%;transition:transform .2s}
+button:hover{transform:translateY(-2px)}
+button:disabled{background:#ccc;cursor:not-allowed;transform:none}
+.st{padding:14px;border-radius:10px;margin-top:12px;font-size:14px;line-height:1.6}
+.st.l{background:#fff3cd;color:#856404}
+.st.s{background:#d4edda;color:#155724}
+.st.e{background:#f8d7da;color:#721c24}
+.al{background:#f8f9fa;padding:14px;border-radius:10px;margin-top:12px}
+.ai{background:#fff;padding:12px;border-radius:8px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.ai:last-child{margin-bottom:0}
+.an{font-weight:600;color:#333}
+.as{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.as.on{background:#d4edda;color:#155724}
+.as.off{background:#f8d7da;color:#721c24}
+input{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;margin-bottom:12px}
+input:focus{outline:none;border-color:#667eea}
+a{color:#667eea;font-weight:600}
+</style></head><body>
+<div class="c">
+<h1>🏠 Sale Bot BĐS</h1>
+<p class="sub">Dashboard quản lý tài khoản Zalo</p>
+<div class="sec">
+<h2>➕ Thêm tài khoản Zalo</h2>
+<input type="text" id="lb" placeholder="Tên tài khoản" value="Account 1">
+<button onclick="addAcc()">Tạo mã QR đăng nhập</button>
+<div id="as"></div>
+</div>
+<div class="sec">
+<h2>📱 Danh sách tài khoản</h2>
+<button onclick="loadAcc()">Tải danh sách</button>
+<div id="al"></div>
+</div>
+<div class="sec">
+<h2>⚙️ Workers</h2>
+<button onclick="loadW()">Xem trạng thái</button>
+<div id="ws"></div>
+</div>
+</div>
+<script>
+const U=location.origin;
+async function addAcc(){
+  const lb=document.getElementById('lb').value||'Account 1';
+  const d=document.getElementById('as');
+  d.className='st l';d.innerHTML='⏳ Đang tạo QR (chờ ~5s)...';
+  try{
+    const r=await fetch(U+'/api/accounts/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:lb})});
+    const j=await r.json();
+    if(j.qrUrl){
+      d.className='st s';
+      d.innerHTML='✅ QR đã tạo!<br><a href="'+U+'/api/accounts/qr-page/'+j.qrId+'" target="_blank">👉 Mở trang quét QR</a><br><small>Quét xong nhấn "Tải danh sách" để kiểm tra</small>';
+    }else throw new Error(j.error||'Lỗi');
+  }catch(e){d.className='st e';d.innerHTML='❌ '+e.message}
+}
+async function loadAcc(){
+  const d=document.getElementById('al');
+  d.innerHTML='<div class="st l">⏳ Đang tải...</div>';
+  try{
+    const r=await fetch(U+'/api/accounts');const j=await r.json();
+    if(j.accounts?.length>0){
+      d.innerHTML='<div class="al">'+j.accounts.map(a=>'<div class="ai"><div><div class="an">'+a.name+'</div><div style="font-size:12px;color:#666">'+a.label+' • '+a.id.slice(-8)+'</div></div><span class="as '+(a.online?'on':'off')+'">'+(a.online?'🟢 Online':'🔴 Offline')+'</span></div>').join('')+'</div>';
+    }else d.innerHTML='<div class="st">Chưa có tài khoản</div>';
+  }catch(e){d.innerHTML='<div class="st e">❌ '+e.message+'</div>'}
+}
+async function loadW(){
+  const d=document.getElementById('ws');
+  d.innerHTML='<div class="st l">⏳ Đang tải...</div>';
+  try{
+    const r=await fetch(U+'/api/workers');const j=await r.json();
+    if(j.workers?.length>0){
+      d.innerHTML='<div class="al">'+j.workers.map(w=>'<div class="ai"><div><div class="an">'+w.accountName+'</div><div style="font-size:12px;color:#666">FR:'+w.friendRequestDaily+' IMG:'+w.imageSendDaily+' Pull:'+w.groupPullDaily+'</div></div><span class="as '+(w.running?'on':'off')+'">'+(w.running?'▶️ Running':'⏸️ Stop')+'</span></div>').join('')+'</div>';
+    }else d.innerHTML='<div class="st">Chưa có worker</div>';
+  }catch(e){d.innerHTML='<div class="st e">❌ '+e.message+'</div>'}
+}
+</script></body></html>`;
+}

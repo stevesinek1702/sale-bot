@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sale Bot - Test Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { color: #333; margin-bottom: 10px; font-size: 28px; }
+    .subtitle { color: #666; margin-bottom: 30px; }
+    .section { margin-bottom: 30px; }
+    .section h2 { font-size: 18px; color: #555; margin-bottom: 15px; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:active { transform: translateY(0); }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .status {
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .status.loading { background: #fff3cd; color: #856404; }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .accounts-list {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 15px;
+    }
+    .account-item {
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .account-item:last-child { margin-bottom: 0; }
+    .account-name { font-weight: 600; color: #333; }
+    .account-status {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .account-status.online { background: #d4edda; color: #155724; }
+    .account-status.offline { background: #f8d7da; color: #721c24; }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 15px;
+      transition: border-color 0.3s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .api-url {
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #666;
+      word-break: break-all;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏠 Sale Bot BĐS</h1>
+    <p class="subtitle">Dashboard quản lý tài khoản Zalo</p>
+
+    <div class="api-url">
+      API: <strong id="apiUrl">https://sale-bot-51fb.onrender.com</strong>
+    </div>
+
+    <!-- Section 1: Thêm Account -->
+    <div class="section">
+      <h2>➕ Thêm tài khoản Zalo</h2>
+      <input type="text" id="accountLabel" placeholder="Tên tài khoản (VD: Account 1)" value="Account 1">
+      <button onclick="addAccount()">Tạo mã QR đăng nhập</button>
+      <div id="addStatus"></div>
+    </div>
+
+    <!-- Section 2: Danh sách Accounts -->
+    <div class="section">
+      <h2>📱 Danh sách tài khoản</h2>
+      <button onclick="loadAccounts()">Tải danh sách</button>
+      <div id="accountsList"></div>
+    </div>
+
+    <!-- Section 3: Workers Status -->
+    <div class="section">
+      <h2>⚙️ Trạng thái Workers</h2>
+      <button onclick="loadWorkers()">Xem trạng thái</button>
+      <div id="workersStatus"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'https://sale-bot-51fb.onrender.com';
+
+    async function addAccount() {
+      const label = document.getElementById('accountLabel').value || 'Account 1';
+      const statusDiv = document.getElementById('addStatus');
+      const btn = event.target;
+      
+      btn.disabled = true;
+      statusDiv.className = 'status loading';
+      statusDiv.innerHTML = '⏳ Đang tạo mã QR...';
+
+      try {
+        const res = await fetch(`${API_URL}/api/accounts/add`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({label})
+        });
+        const data = await res.json();
+
+        if (data.qrUrl) {
+          statusDiv.className = 'status success';
+          statusDiv.innerHTML = `
+            ✅ Mã QR đã tạo!<br>
+            <strong>Bước tiếp theo:</strong><br>
+            1. <a href="${API_URL}${data.qrUrl}" target="_blank" style="color: #667eea; font-weight: 600;">Mở link này</a> để xem QR<br>
+            2. Mở Zalo trên điện thoại → Quét mã QR<br>
+            3. Sau khi quét xong, nhấn "Tải danh sách" để kiểm tra
+          `;
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (err) {
+        statusDiv.className = 'status error';
+        statusDiv.innerHTML = `❌ Lỗi: ${err.message}`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadAccounts() {
+      const listDiv = document.getElementById('accountsList');
+      const btn = event.target;
+      
+      btn.disabled = true;
+      listDiv.innerHTML = '<div class="status loading">⏳ Đang tải...</div>';
+
+      try {
+        const res = await fetch(`${API_URL}/api/accounts`);
+        const data = await res.json();
+
+        if (data.accounts && data.accounts.length > 0) {
+          listDiv.innerHTML = '<div class="accounts-list">' +
+            data.accounts.map(acc => `
+              <div class="account-item">
+                <div>
+                  <div class="account-name">${acc.name}</div>
+                  <div style="font-size: 12px; color: #666;">${acc.label} • ${acc.id.slice(-8)}</div>
+                </div>
+                <span class="account-status ${acc.online ? 'online' : 'offline'}">
+                  ${acc.online ? '🟢 Online' : '🔴 Offline'}
+                </span>
+              </div>
+            `).join('') +
+            '</div>';
+        } else {
+          listDiv.innerHTML = '<div class="status">Chưa có tài khoản nào. Thêm tài khoản ở trên ↑</div>';
+        }
+      } catch (err) {
+        listDiv.innerHTML = `<div class="status error">❌ Lỗi: ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadWorkers() {
+      const statusDiv = document.getElementById('workersStatus');
+      const btn = event.target;
+      
+      btn.disabled = true;
+      statusDiv.innerHTML = '<div class="status loading">⏳ Đang tải...</div>';
+
+      try {
+        const res = await fetch(`${API_URL}/api/workers`);
+        const data = await res.json();
+
+        if (data.workers && data.workers.length > 0) {
+          statusDiv.innerHTML = '<div class="accounts-list">' +
+            data.workers.map(w => `
+              <div class="account-item">
+                <div>
+                  <div class="account-name">${w.accountName}</div>
+                  <div style="font-size: 12px; color: #666;">
+                    FR: ${w.friendRequestDaily} | IMG: ${w.imageSendDaily} | Pull: ${w.groupPullDaily}
+                  </div>
+                </div>
+                <span class="account-status ${w.running ? 'online' : 'offline'}">
+                  ${w.running ? '▶️ Running' : '⏸️ Stopped'}
+                </span>
+              </div>
+            `).join('') +
+            '</div>';
+        } else {
+          statusDiv.innerHTML = '<div class="status">Chưa có worker nào đang chạy.</div>';
+        }
+      } catch (err) {
+        statusDiv.innerHTML = `<div class="status error">❌ Lỗi: ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
