@@ -1,0 +1,179 @@
+/**
+ * Account Manager - Quản lý nhiều tài khoản Zalo
+ * Mỗi account lưu credentials trong data/accounts/<uid>.json
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Import zca-js
+const zcajs = await import('zca-js');
+const { Zalo } = zcajs as any;
+
+const ACCOUNTS_DIR = path.resolve('./data/accounts');
+const apiInstances = new Map<string, any>();
+
+export interface AccountInfo {
+  id: string;
+  name: string;
+  label: string;
+  createdAt: string;
+  lastLoginAt: string;
+  status: 'active' | 'expired' | 'error';
+}
+
+interface StoredAccount {
+  info: AccountInfo;
+  credentials: any;
+}
+
+function ensureDir(): void {
+  if (!fs.existsSync(ACCOUNTS_DIR)) fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
+}
+
+function credPath(id: string): string {
+  return path.join(ACCOUNTS_DIR, `${id}.json`);
+}
+
+function save(data: StoredAccount): void {
+  ensureDir();
+  fs.writeFileSync(credPath(data.info.id), JSON.stringify(data, null, 2));
+}
+
+function load(id: string): StoredAccount | null {
+  try {
+    const p = credPath(id);
+    if (!fs.existsSync(p)) return null;
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+export const accounts = {
+  /** Danh sách tất cả accounts */
+  list(): AccountInfo[] {
+    ensureDir();
+    const files = fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json'));
+    return files.map(f => {
+      try {
+        const data: StoredAccount = JSON.parse(fs.readFileSync(path.join(ACCOUNTS_DIR, f), 'utf-8'));
+        return data.info;
+      } catch { return null; }
+    }).filter(Boolean) as AccountInfo[];
+  },
+
+  /** Thêm account bằng QR code */
+  async addByQR(label?: string, customQrPath?: string): Promise<{ success: boolean; account?: AccountInfo; qrPath?: string; error?: string }> {
+    const qrPath = customQrPath || path.resolve(`./data/accounts/qr_${Date.now()}.png`);
+    ensureDir();
+
+    try {
+      console.log(`📱 Tạo mã QR tại: ${qrPath}`);
+      console.log('👉 Mở Zalo trên điện thoại → Quét mã QR này');
+      console.log('');
+
+      const zaloInstance = new Zalo({ selfListen: false, logging: false });
+      const api = await zaloInstance.loginQR({ qrPath });
+
+      const ctx = api.getContext();
+      const uid = ctx.uid;
+      const userName = ctx?.loginInfo?.name || 'Unknown';
+
+      const info: AccountInfo = {
+        id: uid,
+        name: userName,
+        label: label || `Account ${uid.slice(-4)}`,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+        status: 'active',
+      };
+
+      save({ info, credentials: ctx });
+      apiInstances.set(uid, api);
+
+      // Cleanup QR
+      if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
+
+      console.log(`✅ Đã thêm: ${userName} (${uid})`);
+      return { success: true, account: info };
+    } catch (e: any) {
+      return { success: false, error: e.message, qrPath };
+    }
+  },
+
+  /** Login 1 account bằng credentials đã lưu */
+  async login(accountId: string): Promise<{ success: boolean; api?: any; error?: string }> {
+    if (apiInstances.has(accountId)) {
+      return { success: true, api: apiInstances.get(accountId) };
+    }
+
+    const data = load(accountId);
+    if (!data) return { success: false, error: 'Account not found' };
+
+    try {
+      const zaloInstance = new Zalo({ selfListen: false, logging: false });
+      const api = await zaloInstance.login(data.credentials);
+
+      data.info.lastLoginAt = new Date().toISOString();
+      data.info.status = 'active';
+      save({ info: data.info, credentials: api.getContext() });
+      apiInstances.set(accountId, api);
+
+      console.log(`✅ Logged in: ${data.info.name} (${accountId})`);
+      return { success: true, api };
+    } catch (e: any) {
+      data.info.status = 'expired';
+      save(data);
+      return { success: false, error: `Login failed: ${e.message}` };
+    }
+  },
+
+  /** Login tất cả accounts */
+  async loginAll(): Promise<{ success: number; failed: number; errors: string[] }> {
+    const all = this.list();
+    let success = 0, failed = 0;
+    const errors: string[] = [];
+
+    for (const acc of all) {
+      const result = await this.login(acc.id);
+      if (result.success) success++;
+      else {
+        failed++;
+        errors.push(`${acc.name}: ${result.error}`);
+      }
+    }
+    return { success, failed, errors };
+  },
+
+  /** Lấy API instance */
+  getApi(accountId: string): any | null {
+    return apiInstances.get(accountId) || null;
+  },
+
+  /** Lấy tất cả active APIs */
+  getActiveApis(): Map<string, any> {
+    return apiInstances;
+  },
+
+  /** Xóa account */
+  remove(accountId: string): boolean {
+    const p = credPath(accountId);
+    if (!fs.existsSync(p)) return false;
+    apiInstances.delete(accountId);
+    fs.unlinkSync(p);
+    console.log(`🗑️ Đã xóa account: ${accountId}`);
+    return true;
+  },
+
+  /** Số lượng accounts */
+  count(): number {
+    ensureDir();
+    return fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json')).length;
+  },
+
+  /** Account có online không */
+  isOnline(id: string): boolean {
+    return apiInstances.has(id);
+  },
+};

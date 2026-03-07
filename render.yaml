@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: sale-bot
+    runtime: docker
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "3000"

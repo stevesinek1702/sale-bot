@@ -1,0 +1,7 @@
+node_modules
+data/accounts/*.json
+data/accounts/*.png
+data/progress/*.json
+data/images/*
+!data/images/.gitkeep
+*.log

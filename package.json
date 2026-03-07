@@ -1,0 +1,20 @@
+{
+  "name": "@sale-bot/core",
+  "version": "1.0.0",
+  "description": "Zalo Multi-Account Sale Bot - BĐS cho thuê",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "dev": "bun --watch src/main.ts",
+    "add-account": "bun src/add-account.ts"
+  },
+  "dependencies": {
+    "hono": "^4.10.7",
+    "sharp": "^0.34.5",
+    "zca-js": "^2.0.4"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.7.2"
+  }
+}
