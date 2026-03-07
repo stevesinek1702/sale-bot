@@ -12,6 +12,7 @@ import { Hono } from 'hono';
 import { accounts } from './account.js';
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
 import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus } from './worker.js';
+import { registerListeners } from './listener.js';
 
 let config = loadConfig();
 
@@ -198,13 +199,18 @@ app.post('/api/workers/restart', (c) => {
 function startAllWorkers(): void {
   if (config.sourceGroupLinks.length === 0) {
     console.log('⚠️ Chưa có sourceGroupLinks trong config. Cập nhật data/config.json');
-    return;
   }
 
   for (const [accountId, api] of accounts.getActiveApis()) {
     const info = accounts.list().find(a => a.id === accountId);
     if (info) {
-      startWorker(api, accountId, info.name, config);
+      // Đăng ký listener (auto reply, auto accept FR, auto pull)
+      registerListeners(api, accountId, config);
+
+      // Start worker (quét group, FR, gửi hình) - chỉ khi có source groups
+      if (config.sourceGroupLinks.length > 0) {
+        startWorker(api, accountId, info.name, config);
+      }
     }
   }
 }
