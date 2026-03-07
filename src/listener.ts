@@ -98,9 +98,11 @@ async function autoReply(api: any, threadId: string, senderId: string, config: B
 
 Cảm ơn bạn đã liên hệ!`;
 
-    await api.sendMessage(msg, threadId, 0); // 0 = user
+    // Detect thread type: nếu threadId = senderId thì là DM (type 0), ngược lại là group (type 1)
+    const threadType = threadId === senderId ? 0 : 1;
+    await api.sendMessage(msg, threadId, threadType);
     repliedUsers.set(senderId, Date.now());
-    log('REPLY', `✅ Đã trả lời → ${senderId}`);
+    log('REPLY', `✅ Đã trả lời → ${senderId} (${threadType === 0 ? 'DM' : 'Group'})`);
   } catch (e: any) {
     log('REPLY', `❌ Lỗi trả lời ${senderId}: ${e.message}`);
   }
@@ -158,16 +160,31 @@ export function registerListeners(api: any, accountId: string, config: BotConfig
     // Bỏ qua tin nhắn của chính mình
     if (message.isSelf) return;
 
-    // Chỉ xử lý tin nhắn 1-1 (type 0), bỏ qua group (type 1)
-    if (message.type !== 0) return;
+    const isGroup = message.type === 1;
+    const isDM = message.type === 0;
 
-    log(`MSG:${shortId}`, `📨 ${senderName}: ${content.substring(0, 50)}`);
+    log(`MSG:${shortId}`, `📨 [${isGroup ? 'Group' : 'DM'}] ${senderName}: ${content.substring(0, 50)}`);
 
-    // Auto friend request nếu chưa phải bạn bè
-    await autoFriendRequest(api, senderId, senderName);
+    // Trong group: chỉ trả lời khi được mention/tag
+    if (isGroup) {
+      const mentions = message.data?.mentions || message.data?.mentionIds || [];
+      const botUid = api.getContext?.()?.uid || '';
+      const isMentioned = Array.isArray(mentions)
+        ? mentions.some((m: any) => String(m.uid || m) === botUid)
+        : String(content).includes('@');
 
-    // Auto trả lời
-    await autoReply(api, threadId, senderId, config);
+      if (isMentioned) {
+        log(`MSG:${shortId}`, `🏷️ Được tag trong group bởi ${senderName}`);
+        await autoReply(api, threadId, senderId, config);
+      }
+      return;
+    }
+
+    // DM: auto friend request + auto reply
+    if (isDM) {
+      await autoFriendRequest(api, senderId, senderName);
+      await autoReply(api, threadId, senderId, config);
+    }
   });
 
   log(`LISTENER:${shortId}`, '📨 Message listener registered');
