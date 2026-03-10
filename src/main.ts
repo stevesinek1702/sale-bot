@@ -272,6 +272,16 @@ async function main() {
   // 4. Start workers
   startAllWorkers();
 
+  // 5. Self-ping để không bị Render sleep (free tier sleep sau 15 phút)
+  const APP_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+  setInterval(async () => {
+    try {
+      await fetch(`${APP_URL}/`);
+      console.log('🏓 Self-ping OK');
+    } catch {}
+  }, 10 * 60 * 1000); // Mỗi 10 phút
+
+  console.log(`🏓 Self-ping enabled (mỗi 10 phút) → ${APP_URL}`);
   console.log('👂 Bot đang chạy...');
 }
 
