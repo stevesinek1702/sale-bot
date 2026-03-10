@@ -76,6 +76,20 @@ app.post('/api/accounts/add', async (c) => {
   // Start login process (async, chạy background)
   const loginPromise = accounts.addByQR(label, qrPath);
 
+  // Khi login xong → đăng ký listener + start worker
+  loginPromise.then((result) => {
+    if (result.success && result.account) {
+      const api = accounts.getApi(result.account.id);
+      if (api) {
+        console.log(`🎉 Login thành công: ${result.account.name}, đang đăng ký listener...`);
+        registerListeners(api, result.account.id, config);
+        if (config.sourceGroupLinks.length > 0) {
+          startWorker(api, result.account.id, result.account.name, config);
+        }
+      }
+    }
+  }).catch(() => {});
+
   // Chờ 3s để QR file được tạo
   await new Promise(r => setTimeout(r, 3000));
 
@@ -201,6 +215,22 @@ app.post('/api/workers/restart', (c) => {
   stopAllWorkers();
   startAllWorkers();
   return c.json({ success: true, workers: getWorkersStatus() });
+});
+
+// Kích hoạt listener cho account đã login (dùng khi login QR xong mà listener chưa chạy)
+app.post('/api/activate', (c) => {
+  let activated = 0;
+  for (const [accountId, api] of accounts.getActiveApis()) {
+    const info = accounts.list().find(a => a.id === accountId);
+    if (info) {
+      registerListeners(api, accountId, config);
+      if (config.sourceGroupLinks.length > 0) {
+        startWorker(api, accountId, info.name, config);
+      }
+      activated++;
+    }
+  }
+  return c.json({ success: true, activated, message: `Đã kích hoạt ${activated} account(s)` });
 });
 
 // ═══════════════════════════════════════════════════
