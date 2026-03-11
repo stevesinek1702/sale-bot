@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import { Hono } from 'hono';
-import { accounts, exportAllCredentials } from './account.js';
+import { accounts, exportAllCredentials, getAllStoredAccounts } from './account.js';
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
 import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus } from './worker.js';
 import { registerListeners } from './listener.js';
@@ -76,7 +76,7 @@ app.post('/api/accounts/add', async (c) => {
   // Start login process (async, chạy background)
   const loginPromise = accounts.addByQR(label, qrPath);
 
-  // Khi login xong → đăng ký listener + start worker
+  // Khi login xong → đăng ký listener + start worker + save credentials
   loginPromise.then((result) => {
     if (result.success && result.account) {
       const api = accounts.getApi(result.account.id);
@@ -85,6 +85,14 @@ app.post('/api/accounts/add', async (c) => {
         registerListeners(api, result.account.id, config);
         if (config.sourceGroupLinks.length > 0) {
           startWorker(api, result.account.id, result.account.name, config);
+        }
+        // Auto save credentials vào bundled file
+        try {
+          const stored = getAllStoredAccounts();
+          fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
+          console.log('💾 Credentials đã lưu vào src/credentials.json');
+        } catch (e: any) {
+          console.log('⚠️ Không lưu được credentials file:', e.message);
         }
       }
     }
@@ -164,6 +172,12 @@ app.get('/api/credentials', (c) => {
     credentials: base64,
     instruction: 'Copy giá trị credentials → Render Dashboard → Environment → thêm ZALO_CREDENTIALS = <giá trị>',
   });
+});
+
+// Lấy credentials dạng JSON (để lưu vào repo)
+app.get('/api/credentials/json', (c) => {
+  const stored = getAllStoredAccounts();
+  return c.json(stored);
 });
 
 app.post('/api/upload-image', async (c) => {

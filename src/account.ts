@@ -11,60 +11,84 @@ const zcajs = await import('zca-js');
 const { Zalo } = zcajs as any;
 
 const ACCOUNTS_DIR = path.resolve('./data/accounts');
+const BUNDLED_CREDS = path.resolve('./src/credentials.json'); // Credentials bundled trong repo
 const apiInstances = new Map<string, any>();
 
 // ═══════════════════════════════════════════════════
-// ENV CREDENTIALS - Persist qua deploy
+// ENV / BUNDLED CREDENTIALS - Persist qua deploy
 // ═══════════════════════════════════════════════════
 
 /**
- * Restore accounts từ env var ZALO_CREDENTIALS
- * Format: base64 encoded JSON array of StoredAccount[]
+ * Restore accounts từ env var ZALO_CREDENTIALS hoặc bundled file
  */
-function restoreFromEnv(): void {
+function restoreCredentials(): void {
+  ensureDir();
+
+  // Ưu tiên 1: env var
   const envCreds = process.env.ZALO_CREDENTIALS;
-  if (!envCreds) return;
-
-  try {
-    const json = Buffer.from(envCreds, 'base64').toString('utf-8');
-    const stored: StoredAccount[] = JSON.parse(json);
-    ensureDir();
-
-    for (const data of stored) {
-      const p = credPath(data.info.id);
-      if (!fs.existsSync(p)) {
-        fs.writeFileSync(p, JSON.stringify(data, null, 2));
+  if (envCreds) {
+    try {
+      const json = Buffer.from(envCreds, 'base64').toString('utf-8');
+      const stored: StoredAccount[] = JSON.parse(json);
+      for (const data of stored) {
+        fs.writeFileSync(credPath(data.info.id), JSON.stringify(data, null, 2));
         console.log(`📦 Restored từ env: ${data.info.name} (${data.info.id})`);
       }
+      return;
+    } catch (e: any) {
+      console.error('⚠️ Lỗi restore từ env:', e.message);
     }
-  } catch (e: any) {
-    console.error('⚠️ Lỗi restore credentials từ env:', e.message);
+  }
+
+  // Ưu tiên 2: bundled file trong repo
+  if (fs.existsSync(BUNDLED_CREDS)) {
+    try {
+      const stored: StoredAccount[] = JSON.parse(fs.readFileSync(BUNDLED_CREDS, 'utf-8'));
+      for (const data of stored) {
+        fs.writeFileSync(credPath(data.info.id), JSON.stringify(data, null, 2));
+        console.log(`📦 Restored từ bundled: ${data.info.name} (${data.info.id})`);
+      }
+    } catch (e: any) {
+      console.error('⚠️ Lỗi restore từ bundled:', e.message);
+    }
   }
 }
 
 /**
  * Export tất cả credentials thành base64 string
- * Dùng để lưu vào Render env var
  */
 function exportCredentials(): string {
   ensureDir();
   const files = fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('qr_'));
   const stored: StoredAccount[] = [];
-
   for (const f of files) {
     try {
       const data: StoredAccount = JSON.parse(fs.readFileSync(path.join(ACCOUNTS_DIR, f), 'utf-8'));
       stored.push(data);
     } catch {}
   }
-
   return Buffer.from(JSON.stringify(stored)).toString('base64');
 }
 
-// Auto restore khi khởi động
-restoreFromEnv();
+/**
+ * Lấy tất cả stored accounts (để lưu vào repo)
+ */
+function getAllStoredAccounts(): StoredAccount[] {
+  ensureDir();
+  const files = fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('qr_'));
+  const stored: StoredAccount[] = [];
+  for (const f of files) {
+    try {
+      stored.push(JSON.parse(fs.readFileSync(path.join(ACCOUNTS_DIR, f), 'utf-8')));
+    } catch {}
+  }
+  return stored;
+}
 
-export { exportCredentials as exportAllCredentials };
+// Auto restore khi khởi động
+restoreCredentials();
+
+export { exportCredentials as exportAllCredentials, getAllStoredAccounts };
 
 export interface AccountInfo {
   id: string;
