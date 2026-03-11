@@ -327,17 +327,17 @@ async function doGroupPull(api: any, state: WorkerState, config: BotConfig): Pro
   }
 
   try {
-    // Resolve target group ID
     const targetInfo = await api.getGroupLinkInfo({ link: config.targetGroupLink, memberPage: 1 });
     if (!targetInfo?.groupId) throw new Error('Không resolve được group đích');
 
-    // Thử invite
-    const result = await api.inviteUserToGroups(next.member.id, targetInfo.groupId);
-    const groupResult = result?.grid_message_map?.[targetInfo.groupId];
-
-    if (groupResult?.error_code && groupResult.error_code !== 0) {
-      // Fallback
+    try {
       await api.addUserToGroup(next.member.id, targetInfo.groupId);
+    } catch {
+      const result = await api.inviteUserToGroups(next.member.id, targetInfo.groupId);
+      const groupResult = result?.grid_message_map?.[targetInfo.groupId];
+      if (groupResult?.error_code && groupResult.error_code !== 0) {
+        throw new Error(`Invite error: ${groupResult.error_code}`);
+      }
     }
 
     progress.groupPullDaily++;
@@ -349,7 +349,6 @@ async function doGroupPull(api: any, state: WorkerState, config: BotConfig): Pro
   markDone(progress, 'groupPulled', next.groupLink, next.member.id);
   saveProgress(progress);
 
-  // Schedule next
   if (state.running && progress.groupPullDaily < config.limits.groupPullsPerDay) {
     const delay = randomDelay(config.delays.groupPullMin, config.delays.groupPullMax);
     log(state.accountId, `⏰ PULL next in ${Math.round(delay / 60000)}min`);
