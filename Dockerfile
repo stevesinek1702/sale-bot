@@ -9,11 +9,11 @@ RUN bun install --frozen-lockfile --production
 COPY src/ src/
 COPY tsconfig.json ./
 
-# Copy data (images, etc.)
-COPY data/ data/
-
-# Create data directories (nếu chưa có)
+# Create data directories
 RUN mkdir -p data/accounts data/images data/progress
+
+# Copy invite image
+COPY data/images/invite.jpg data/images/invite.jpg
 
 # Expose port
 EXPOSE 3000

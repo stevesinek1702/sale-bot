@@ -1,5 +1,6 @@
-node_modules
-data
+﻿node_modules
+data/accounts
+data/progress
 *.png
-*.jpg
 dist
+!data/images/invite.jpg
