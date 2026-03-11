@@ -48,13 +48,15 @@ export interface BotConfig {
 // ═══════════════════════════════════════════════════
 
 const DEFAULT_CONFIG: BotConfig = {
-  sourceGroupLinks: [],
-  targetGroupLink: '',
+  sourceGroupLinks: [
+    'https://zalo.me/g/tuwpbw027',
+  ],
+  targetGroupLink: 'https://zalo.me/g/hywbhw272',
   inviteImagePath: 'images/invite.jpg',
-  friendRequestMessage: 'Chào bạn! Mình có nhiều BĐS cho thuê giá tốt, kết bạn để mình tư vấn nhé 🏠',
+  friendRequestMessage: '🏠CHDV 71A Nguyễn Thượng Hiền (quận Bình Thạnh cũ) 🗝️ Tham gia nhóm để xem thông tin phòng trống. Tel 0329 407 073',
   limits: {
-    friendRequestsPerDay: 30,
-    imageSendsPerDay: 100,
+    friendRequestsPerDay: 50,
+    imageSendsPerDay: 50,
     groupPullsPerDay: 20,
   },
   activeHours: {

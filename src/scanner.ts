@@ -29,6 +29,7 @@ export async function scanGroupMembers(api: any, groupLink: string): Promise<Sca
     page1.creatorId || '',
     api.getContext?.()?.uid || '',
     ...(page1.adminIds || []),
+    ...(page1.subAdminIds || []),
   ]);
 
   // Process members từ tất cả pages
