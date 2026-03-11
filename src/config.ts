@@ -61,7 +61,7 @@ const DEFAULT_CONFIG: BotConfig = {
   },
   activeHours: {
     start: 7,
-    end: 22,
+    end: 23,
   },
   delays: {
     friendRequestMin: 30,
