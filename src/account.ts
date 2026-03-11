@@ -43,10 +43,12 @@ function restoreCredentials(): void {
   // Ưu tiên 2: bundled file trong repo
   if (fs.existsSync(BUNDLED_CREDS)) {
     try {
-      const stored: StoredAccount[] = JSON.parse(fs.readFileSync(BUNDLED_CREDS, 'utf-8'));
+      const raw = fs.readFileSync(BUNDLED_CREDS, 'utf-8');
+      const parsed = JSON.parse(raw);
+      const stored: StoredAccount[] = Array.isArray(parsed) ? parsed : [parsed];
       for (const data of stored) {
         fs.writeFileSync(credPath(data.info.id), JSON.stringify(data, null, 2));
-        console.log(`📦 Restored từ bundled: ${data.info.name} (${data.info.id})`);
+        console.log(`📦 Restored từ bundled: ${data.info.label} (${data.info.id})`);
       }
     } catch (e: any) {
       console.error('⚠️ Lỗi restore từ bundled:', e.message);
