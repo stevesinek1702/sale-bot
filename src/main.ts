@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { Hono } from 'hono';
 import { accounts, exportAllCredentials, getAllStoredAccounts } from './account.js';
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
-import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus } from './worker.js';
+import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress } from './worker.js';
 import { registerListeners } from './listener.js';
 
 let config = loadConfig();
@@ -224,6 +224,9 @@ app.put('/api/config', async (c) => {
 // ─── Workers ───
 
 app.get('/api/workers', (c) => c.json({ workers: getWorkersStatus() }));
+
+// Export progress (để lưu vào repo, tránh mất khi deploy)
+app.get('/api/progress', (c) => c.json(exportAllProgress()));
 
 app.post('/api/workers/restart', (c) => {
   stopAllWorkers();

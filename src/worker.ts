@@ -61,6 +61,7 @@ const workers = new Map<string, WorkerState>();
 // ═══════════════════════════════════════════════════
 
 const PROGRESS_DIR = path.resolve('./data/progress');
+const BUNDLED_PROGRESS_DIR = path.resolve('./src/progress');
 
 function ensureProgressDir(): void {
   if (!fs.existsSync(PROGRESS_DIR)) fs.mkdirSync(PROGRESS_DIR, { recursive: true });
@@ -70,8 +71,22 @@ function progressPath(accountId: string): string {
   return path.join(PROGRESS_DIR, `${accountId}.json`);
 }
 
+/**
+ * Restore progress từ bundled files (src/progress/)
+ */
+function restoreProgress(accountId: string): void {
+  const bundledPath = path.join(BUNDLED_PROGRESS_DIR, `${accountId}.json`);
+  const targetPath = progressPath(accountId);
+  if (!fs.existsSync(targetPath) && fs.existsSync(bundledPath)) {
+    ensureProgressDir();
+    fs.copyFileSync(bundledPath, targetPath);
+    console.log(`📦 Restored progress cho ${accountId}`);
+  }
+}
+
 function loadProgress(accountId: string): AccountProgress {
   ensureProgressDir();
+  restoreProgress(accountId);
   try {
     const p = progressPath(accountId);
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf-8'));
@@ -455,4 +470,20 @@ export function getWorkersStatus(): Array<{
     groupPullDaily: w.progress.groupPullDaily,
     running: w.running,
   }));
+}
+
+/**
+ * Export tất cả progress files (để lưu vào repo)
+ */
+export function exportAllProgress(): Record<string, AccountProgress> {
+  ensureProgressDir();
+  const result: Record<string, AccountProgress> = {};
+  const files = fs.readdirSync(PROGRESS_DIR).filter(f => f.endsWith('.json'));
+  for (const f of files) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(PROGRESS_DIR, f), 'utf-8'));
+      result[data.accountId] = data;
+    } catch {}
+  }
+  return result;
 }
