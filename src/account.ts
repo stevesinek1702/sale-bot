@@ -11,7 +11,8 @@ const zcajs = await import('zca-js');
 const { Zalo } = zcajs as any;
 
 const ACCOUNTS_DIR = path.resolve('./data/accounts');
-const BUNDLED_CREDS = path.resolve('./src/credentials.json'); // Credentials bundled trong repo
+const BUNDLED_CREDS = path.resolve('./src/credentials.json');
+const BUNDLED_ACCOUNTS_DIR = path.resolve('./src/accounts'); // Individual account files
 const apiInstances = new Map<string, any>();
 
 // ═══════════════════════════════════════════════════
@@ -152,6 +153,11 @@ function credPath(id: string): string {
 function save(data: StoredAccount): void {
   ensureDir();
   fs.writeFileSync(credPath(data.info.id), JSON.stringify(data, null, 2));
+  // Also save to bundled accounts dir (persist across deploys)
+  try {
+    if (!fs.existsSync(BUNDLED_ACCOUNTS_DIR)) fs.mkdirSync(BUNDLED_ACCOUNTS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(BUNDLED_ACCOUNTS_DIR, `${data.info.id}.json`), JSON.stringify(data, null, 2));
+  } catch {}
 }
 
 function load(id: string): StoredAccount | null {
