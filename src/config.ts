@@ -53,7 +53,7 @@ const DEFAULT_CONFIG: BotConfig = {
   ],
   targetGroupLink: 'https://zalo.me/g/hywbhw272',
   inviteImagePath: 'images/invite.jpg',
-  friendRequestMessage: '🏠CHDV 71A Nguyễn Thượng Hiền (quận Bình Thạnh cũ) 🗝️ Tham gia nhóm để xem thông tin phòng trống. Tel 0329 407 073',
+  friendRequestMessage: '🏠 CHDV 71A Nguyễn Thượng Hiền (Quận Bình Thạnh cũ) - Phòng đẹp giá tốt, tham gia nhóm xem phòng trống nhé! 👉 https://zalo.me/g/hywbhw272 📞 0329 407 073',
   limits: {
     friendRequestsPerDay: 100,
     imageSendsPerDay: 100,

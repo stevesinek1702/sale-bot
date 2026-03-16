@@ -89,14 +89,15 @@ async function autoReply(api: any, threadId: string, senderId: string, config: B
   try {
     await randomDelay(1000, 3000);
 
-    const msg = `🏠 CHDV 71A Nguyễn Thượng Hiền (quận Bình Thạnh cũ)
-🗝️ Tham gia nhóm để xem thông tin phòng trống.
+    const msg = `🏠 CHDV 71A Nguyễn Thượng Hiền (Quận Bình Thạnh cũ) - Chào đón Khách thuê & Đối tác!
 
+🎯 Dành cho khách hàng tìm phòng: Nhóm luôn cập nhật hình ảnh thật và thông tin phòng trống mới nhất. Tham gia ngay để chọn được căn ưng ý:
 👉 ${config.targetGroupLink || 'https://zalo.me/g/hywbhw272'}
 
-📞 Tel 0329 407 073
+💼 Tuyển Cộng tác viên / Môi giới: Bên mình cần tuyển CTV đẩy phòng thường xuyên. Hoa hồng cao, hợp tác uy tín, làm việc nhanh gọn. Cứ nhắn tin hoặc gọi trực tiếp để nhận bảng chính sách nhé!
 
-Cảm ơn bạn đã liên hệ!`;
+📞 Liên hệ ngay: 0329 407 073
+Rất mong được hợp tác cùng bạn!`;
 
     // Detect thread type: nếu threadId = senderId thì là DM (type 0), ngược lại là group (type 1)
     const threadType = threadId === senderId ? 0 : 1;
