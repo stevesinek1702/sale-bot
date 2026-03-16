@@ -176,6 +176,11 @@ function log(accountId: string, msg: string): void {
   console.log(`[${time}] [${accountId.slice(-4)}] ${msg}`);
 }
 
+/** Lấy source groups cho 1 account (ưu tiên riêng, fallback chung) */
+function getSourceGroups(accountId: string, config: BotConfig): string[] {
+  return config.accountSourceGroups?.[accountId] || config.sourceGroupLinks;
+}
+
 
 // ═══════════════════════════════════════════════════
 // CORE ACTIONS
@@ -193,8 +198,9 @@ async function findNextMember(
   const progress = state.progress;
 
   // Scan TẤT CẢ groups từ đầu cho mỗi action (không dùng shared currentGroupIndex)
-  for (let i = 0; i < config.sourceGroupLinks.length; i++) {
-    const groupLink = config.sourceGroupLinks[i];
+  const sourceGroups = getSourceGroups(state.accountId, config);
+  for (let i = 0; i < sourceGroups.length; i++) {
+    const groupLink = sourceGroups[i];
 
     // Scan members (cache)
     if (state.cachedGroupLink !== groupLink) {
@@ -561,7 +567,7 @@ export async function testSendImages(
   // Load progress
   const progress = loadProgress(accountId);
 
-  for (const groupLink of config.sourceGroupLinks) {
+  for (const groupLink of getSourceGroups(accountId, config)) {
     if (sent.length >= count) break;
 
     let members: GroupMember[];

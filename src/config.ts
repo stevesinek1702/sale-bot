@@ -13,8 +13,10 @@ import path from 'node:path';
 // ═══════════════════════════════════════════════════
 
 export interface BotConfig {
-  // Danh sách group nguồn để quét member
+  // Danh sách group nguồn để quét member (dùng chung nếu account không có riêng)
   sourceGroupLinks: string[];
+  // Source groups riêng cho từng account: accountId → [groupLinks]
+  accountSourceGroups: Record<string, string[]>;
   // Group đích để mời member về
   targetGroupLink: string;
   // Hình ảnh gửi cho member (đường dẫn relative từ data/)
@@ -51,6 +53,10 @@ const DEFAULT_CONFIG: BotConfig = {
   sourceGroupLinks: [
     'https://zalo.me/g/tuwpbw027',
   ],
+  accountSourceGroups: {
+    '624477080503635119': ['https://zalo.me/g/tuwpbw027'],   // An Nhiên
+    '620536444087160751': ['https://zalo.me/g/fecfcv6252'],  // Tú Nhi
+  },
   targetGroupLink: 'https://zalo.me/g/hywbhw272',
   inviteImagePath: 'images/invite.jpg',
   friendRequestMessage: '🏠 CHDV 71A Nguyễn Thượng Hiền (Quận Bình Thạnh cũ) - Phòng đẹp giá tốt, tham gia nhóm xem phòng trống nhé! 👉 https://zalo.me/g/hywbhw272 📞 0329 407 073',
@@ -91,7 +97,7 @@ export function loadConfig(): BotConfig {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       const raw = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-      return { ...DEFAULT_CONFIG, ...raw, limits: { ...DEFAULT_CONFIG.limits, ...raw.limits }, activeHours: { ...DEFAULT_CONFIG.activeHours, ...raw.activeHours }, delays: { ...DEFAULT_CONFIG.delays, ...raw.delays } };
+      return { ...DEFAULT_CONFIG, ...raw, accountSourceGroups: { ...DEFAULT_CONFIG.accountSourceGroups, ...raw.accountSourceGroups }, limits: { ...DEFAULT_CONFIG.limits, ...raw.limits }, activeHours: { ...DEFAULT_CONFIG.activeHours, ...raw.activeHours }, delays: { ...DEFAULT_CONFIG.delays, ...raw.delays } };
     }
   } catch (e) {
     console.error('⚠️ Lỗi đọc config.json, dùng mặc định');

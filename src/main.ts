@@ -14,6 +14,11 @@ import { loadConfig, saveConfig, type BotConfig } from './config.js';
 import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress, testSendImages } from './worker.js';
 import { registerListeners } from './listener.js';
 
+/** Check account có source groups không (riêng hoặc chung) */
+function hasGroups(accountId: string, config: BotConfig): boolean {
+  return (config.accountSourceGroups?.[accountId]?.length || config.sourceGroupLinks.length) > 0;
+}
+
 let config = loadConfig();
 
 // ═══════════════════════════════════════════════════
@@ -83,7 +88,7 @@ app.post('/api/accounts/add', async (c) => {
       if (api) {
         console.log(`🎉 Login thành công: ${result.account.name}, đang đăng ký listener...`);
         registerListeners(api, result.account.id, config);
-        if (config.sourceGroupLinks.length > 0) {
+        if (hasGroups(result.account.id, config)) {
           startWorker(api, result.account.id, result.account.name, config);
         }
         // Auto save credentials vào bundled file
@@ -162,7 +167,7 @@ app.post('/api/accounts/:id/login', async (c) => {
     const info = accounts.list().find(a => a.id === id);
     if (api && info) {
       registerListeners(api, id, config);
-      if (config.sourceGroupLinks.length > 0) {
+      if (hasGroups(id, config)) {
         startWorker(api, id, info.name || info.label, config);
       }
     }
@@ -178,7 +183,7 @@ app.post('/api/login-all', async (c) => {
     const info = accounts.list().find(a => a.id === accountId);
     if (info) {
       registerListeners(api, accountId, config);
-      if (config.sourceGroupLinks.length > 0) {
+      if (hasGroups(accountId, config)) {
         startWorker(api, accountId, info.name || info.label, config);
       }
     }
@@ -418,7 +423,7 @@ app.post('/api/workers/restart', async (c) => {
       const info = accounts.list().find(a => a.id === accountId);
       if (info) {
         registerListeners(api, accountId, config);
-        if (config.sourceGroupLinks.length > 0) {
+        if (hasGroups(accountId, config)) {
           startWorker(api, accountId, info.name || info.label, config);
         }
       }
@@ -460,7 +465,7 @@ app.post('/api/activate', (c) => {
     const info = accounts.list().find(a => a.id === accountId);
     if (info) {
       registerListeners(api, accountId, config);
-      if (config.sourceGroupLinks.length > 0) {
+      if (hasGroups(accountId, config)) {
         startWorker(api, accountId, info.name, config);
       }
       activated++;
@@ -493,7 +498,7 @@ app.post('/api/go', async (c) => {
         const info = accounts.list().find(a => a.id === accountId);
         if (info) {
           registerListeners(api, accountId, config);
-          if (config.sourceGroupLinks.length > 0) {
+          if (hasGroups(accountId, config)) {
             startWorker(api, accountId, info.name, config);
           }
           activated++;
@@ -543,10 +548,6 @@ app.post('/api/go', async (c) => {
 // ═══════════════════════════════════════════════════
 
 function startAllWorkers(): void {
-  if (config.sourceGroupLinks.length === 0) {
-    console.log('⚠️ Chưa có sourceGroupLinks trong config. Cập nhật data/config.json');
-  }
-
   for (const [accountId, api] of accounts.getActiveApis()) {
     const info = accounts.list().find(a => a.id === accountId);
     if (info) {
@@ -554,7 +555,7 @@ function startAllWorkers(): void {
       registerListeners(api, accountId, config);
 
       // Start worker (quét group, FR, gửi hình) - chỉ khi có source groups
-      if (config.sourceGroupLinks.length > 0) {
+      if (hasGroups(accountId, config)) {
         startWorker(api, accountId, info.name, config);
       }
     }
@@ -597,7 +598,8 @@ async function main() {
 
   // 3. Hiển thị config
   console.log(`📋 Config:`);
-  console.log(`   Source groups: ${config.sourceGroupLinks.length}`);
+  console.log(`   Source groups (chung): ${config.sourceGroupLinks.length}`);
+  console.log(`   Account groups: ${JSON.stringify(config.accountSourceGroups)}`);
   console.log(`   Target group: ${config.targetGroupLink || '(chưa set)'}`);
   console.log(`   FR/ngày: ${config.limits.friendRequestsPerDay}`);
   console.log(`   IMG/ngày: ${config.limits.imageSendsPerDay}`);
