@@ -55,7 +55,7 @@ const DEFAULT_CONFIG: BotConfig = {
   ],
   accountSourceGroups: {
     '624477080503635119': ['https://zalo.me/g/tuwpbw027'],   // An Nhiên
-    '620536444087160751': ['https://zalo.me/g/fecfcv6252'],  // Tú Nhi
+    '620536444087160751': ['https://zalo.me/g/fecfcv625'],  // Tú Nhi
   },
   targetGroupLink: 'https://zalo.me/g/hywbhw272',
   inviteImagePath: 'images/invite.jpg',
