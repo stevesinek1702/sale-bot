@@ -55,8 +55,8 @@ const DEFAULT_CONFIG: BotConfig = {
   inviteImagePath: 'images/invite.jpg',
   friendRequestMessage: '🏠CHDV 71A Nguyễn Thượng Hiền (quận Bình Thạnh cũ) 🗝️ Tham gia nhóm để xem thông tin phòng trống. Tel 0329 407 073',
   limits: {
-    friendRequestsPerDay: 50,
-    imageSendsPerDay: 50,
+    friendRequestsPerDay: 100,
+    imageSendsPerDay: 100,
     groupPullsPerDay: 20,
   },
   activeHours: {
@@ -64,10 +64,10 @@ const DEFAULT_CONFIG: BotConfig = {
     end: 23,
   },
   delays: {
-    friendRequestMin: 15,
-    friendRequestMax: 25,
-    imageSendMin: 15,
-    imageSendMax: 25,
+    friendRequestMin: 5,
+    friendRequestMax: 18,
+    imageSendMin: 5,
+    imageSendMax: 18,
     groupPullMin: 30,
     groupPullMax: 60,
   },
