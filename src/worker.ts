@@ -360,7 +360,6 @@ async function doImageSend(api: any, state: WorkerState, config: BotConfig): Pro
     state.timers.imageSend = setTimeout(() => doImageSend(api, state, config), delay);
   }
 }
-}
 
 // ═══════════════════════════════════════════════════
 // ACTION 3: KÉO MEMBER VÀO GROUP ĐÍCH
@@ -438,8 +437,12 @@ export function startWorker(api: any, accountId: string, accountName: string, co
     return;
   }
 
-  // Build shared sets lần đầu
-  if (sharedSent.imageSent.size === 0) buildSharedSets();
+  try {
+    // Build shared sets lần đầu
+    if (sharedSent.imageSent.size === 0) buildSharedSets();
+  } catch (e: any) {
+    console.error(`⚠️ buildSharedSets error: ${e.message}`);
+  }
 
   const state: WorkerState = {
     running: true,
