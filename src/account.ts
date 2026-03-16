@@ -195,9 +195,13 @@ export const accounts = {
     }
 
     const data = load(accountId);
-    if (!data) return { success: false, error: 'Account not found' };
+    if (!data) {
+      console.log(`⚠️ Login: account ${accountId} not found in data/accounts/`);
+      return { success: false, error: 'Account not found' };
+    }
 
     try {
+      console.log(`🔑 Logging in: ${data.info.label} (${accountId})...`);
       const zaloInstance = new Zalo({ selfListen: false, logging: false });
       const api = await zaloInstance.login(data.credentials);
 
@@ -218,6 +222,7 @@ export const accounts = {
   /** Login tất cả accounts */
   async loginAll(): Promise<{ success: number; failed: number; errors: string[] }> {
     const all = this.list();
+    console.log(`📱 loginAll: found ${all.length} accounts: ${all.map(a => `${a.label}(${a.id})`).join(', ')}`);
     let success = 0, failed = 0;
     const errors: string[] = [];
 

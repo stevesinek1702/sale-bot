@@ -230,7 +230,6 @@ app.get('/api/debug/creds-file', (c) => {
   try {
     const bundled = './src/credentials.json';
     const exists = fs.existsSync(bundled);
-    let content = '';
     let count = 0;
     let ids: string[] = [];
     if (exists) {
@@ -239,11 +238,10 @@ app.get('/api/debug/creds-file', (c) => {
       const arr = Array.isArray(parsed) ? parsed : [parsed];
       count = arr.length;
       ids = arr.map((a: any) => `${a.info?.id} (${a.info?.label})`);
-      content = raw.substring(0, 200);
     }
     const accountsDir = './data/accounts';
     const files = fs.existsSync(accountsDir) ? fs.readdirSync(accountsDir) : [];
-    return c.json({ bundledExists: exists, bundledCount: count, bundledIds: ids, bundledPreview: content, accountFiles: files });
+    return c.json({ bundledExists: exists, bundledCount: count, bundledIds: ids, accountFiles: files });
   } catch (e: any) {
     return c.json({ error: e.message });
   }
