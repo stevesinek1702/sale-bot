@@ -234,14 +234,29 @@ app.get('/api/debug/creds-file', (c) => {
     let ids: string[] = [];
     if (exists) {
       const raw = fs.readFileSync(bundled, 'utf-8');
-      const parsed = JSON.parse(raw);
+      // Strip BOM
+      const cleaned = raw.replace(/^\uFEFF/, '').replace(/\0/g, '').trim();
+      const parsed = JSON.parse(cleaned);
       const arr = Array.isArray(parsed) ? parsed : [parsed];
       count = arr.length;
-      ids = arr.map((a: any) => `${a.info?.id} (${a.info?.label})`);
+      ids = arr.map((a: any) => {
+        const id = a?.info?.id || a?.credentials?.uid || 'NO_ID';
+        const label = a?.info?.label || a?.info?.name || 'NO_NAME';
+        return `${id} (${label})`;
+      });
     }
     const accountsDir = './data/accounts';
     const files = fs.existsSync(accountsDir) ? fs.readdirSync(accountsDir) : [];
-    return c.json({ bundledExists: exists, bundledCount: count, bundledIds: ids, accountFiles: files });
+    // Also check each account file content
+    const accountDetails = files.filter(f => f.endsWith('.json') && !f.startsWith('qr_')).map(f => {
+      try {
+        const data = JSON.parse(fs.readFileSync(`${accountsDir}/${f}`, 'utf-8'));
+        return { file: f, id: data?.info?.id, status: data?.info?.status, label: data?.info?.label };
+      } catch (e: any) {
+        return { file: f, error: e.message };
+      }
+    });
+    return c.json({ bundledExists: exists, bundledCount: count, bundledIds: ids, accountFiles: files, accountDetails });
   } catch (e: any) {
     return c.json({ error: e.message });
   }

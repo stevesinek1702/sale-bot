@@ -71,8 +71,13 @@ function restoreCredentials(): void {
         // Fix id nếu lấy từ credentials.uid
         if (!data.info.id && id) data.info.id = id;
         const targetPath = credPath(id);
-        fs.writeFileSync(targetPath, JSON.stringify(data, null, 2));
-        console.log(`📦 Restored: ${data.info.label || data.info.name} (${id}) → ${targetPath}`);
+        try {
+          fs.writeFileSync(targetPath, JSON.stringify(data, null, 2));
+          const exists = fs.existsSync(targetPath);
+          console.log(`📦 Restored: ${data.info.label || data.info.name} (${id}) → ${targetPath} [exists=${exists}]`);
+        } catch (writeErr: any) {
+          console.error(`❌ Failed to write ${targetPath}: ${writeErr.message}`);
+        }
       }
     } catch (e: any) {
       console.error('⚠️ Lỗi restore từ bundled:', e.message);
@@ -217,8 +222,12 @@ export const accounts = {
 
     const data = load(accountId);
     if (!data) {
-      console.log(`⚠️ Login: account ${accountId} not found in data/accounts/`);
-      return { success: false, error: 'Account not found' };
+      // Debug: check if file exists
+      const p = credPath(accountId);
+      const exists = fs.existsSync(p);
+      const allFiles = fs.readdirSync(ACCOUNTS_DIR);
+      console.log(`⚠️ Login: account ${accountId} not found. File exists=${exists}, dir files=[${allFiles.join(',')}]`);
+      return { success: false, error: `Account not found (file exists=${exists})` };
     }
 
     try {
