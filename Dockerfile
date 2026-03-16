@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile --production
 
-# Copy source
+# Copy source (bust cache v2)
 COPY src/ src/
 COPY tsconfig.json ./
 
