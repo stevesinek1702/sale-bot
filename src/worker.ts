@@ -57,6 +57,32 @@ interface WorkerState {
 const workers = new Map<string, WorkerState>();
 
 // ═══════════════════════════════════════════════════
+// SHARED PROGRESS - Tránh 2 account gửi trùng member
+// ═══════════════════════════════════════════════════
+const sharedSent = {
+  friendRequested: new Set<string>(),
+  imageSent: new Set<string>(),
+  groupPulled: new Set<string>(),
+};
+
+/** Load shared set từ tất cả progress files */
+function buildSharedSets(): void {
+  ensureProgressDir();
+  const files = fs.readdirSync(PROGRESS_DIR).filter(f => f.endsWith('.json'));
+  for (const f of files) {
+    try {
+      const data: AccountProgress = JSON.parse(fs.readFileSync(path.join(PROGRESS_DIR, f), 'utf-8'));
+      for (const key of ['friendRequested', 'imageSent', 'groupPulled'] as const) {
+        for (const ids of Object.values(data[key])) {
+          for (const id of ids) sharedSent[key].add(id);
+        }
+      }
+    } catch {}
+  }
+  console.log(`📊 Shared sets: FR=${sharedSent.friendRequested.size}, IMG=${sharedSent.imageSent.size}, PULL=${sharedSent.groupPulled.size}`);
+}
+
+// ═══════════════════════════════════════════════════
 // PROGRESS TRACKING
 // ═══════════════════════════════════════════════════
 
@@ -185,7 +211,9 @@ async function findNextMember(
     }
 
     const doneIds = new Set(progress[trackKey][groupLink] || []);
-    const unsent = state.cachedMembers.filter(m => !doneIds.has(m.id));
+    // Cũng skip member đã được account khác xử lý
+    const sharedDone = sharedSent[trackKey];
+    const unsent = state.cachedMembers.filter(m => !doneIds.has(m.id) && !sharedDone.has(m.id));
 
     if (unsent.length === 0) continue;
 
@@ -198,6 +226,8 @@ async function findNextMember(
 function markDone(progress: AccountProgress, trackKey: string, groupLink: string, userId: string): void {
   if (!(progress as any)[trackKey][groupLink]) (progress as any)[trackKey][groupLink] = [];
   (progress as any)[trackKey][groupLink].push(userId);
+  // Cập nhật shared set
+  if (trackKey in sharedSent) (sharedSent as any)[trackKey].add(userId);
 }
 
 // ═══════════════════════════════════════════════════
@@ -408,6 +438,9 @@ export function startWorker(api: any, accountId: string, accountName: string, co
     return;
   }
 
+  // Build shared sets lần đầu
+  if (sharedSent.imageSent.size === 0) buildSharedSets();
+
   const state: WorkerState = {
     running: true,
     accountId,
@@ -539,7 +572,7 @@ export async function testSendImages(
     }
 
     const doneIds = new Set(progress.imageSent[groupLink] || []);
-    const unsent = members.filter(m => !doneIds.has(m.id));
+    const unsent = members.filter(m => !doneIds.has(m.id) && !sharedSent.imageSent.has(m.id));
 
     for (const member of unsent) {
       if (sent.length >= count) break;
