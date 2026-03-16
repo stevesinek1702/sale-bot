@@ -225,6 +225,49 @@ app.put('/api/config', async (c) => {
 
 app.get('/api/workers', (c) => c.json({ workers: getWorkersStatus() }));
 
+// Debug: test restore credentials manually
+app.get('/api/debug/test-restore', (c) => {
+  try {
+    const bundled = './src/credentials.json';
+    if (!fs.existsSync(bundled)) return c.json({ error: 'No bundled file' });
+    
+    const raw = fs.readFileSync(bundled, 'utf-8');
+    const firstBytes = Array.from(Buffer.from(raw.substring(0, 5))).join(',');
+    const cleaned = raw.replace(/^\uFEFF/, '').replace(/\0/g, '').trim();
+    
+    let parsed: any;
+    try { parsed = JSON.parse(cleaned); } catch (e: any) { return c.json({ error: `Parse failed: ${e.message}`, firstBytes, rawLength: raw.length }); }
+    
+    const arr = Array.isArray(parsed) ? parsed : [parsed];
+    const results: any[] = [];
+    
+    const accountsDir = './data/accounts';
+    if (!fs.existsSync(accountsDir)) fs.mkdirSync(accountsDir, { recursive: true });
+    
+    for (let i = 0; i < arr.length; i++) {
+      const data = arr[i];
+      const id = data?.info?.id || data?.credentials?.uid;
+      const label = data?.info?.label || data?.info?.name;
+      if (!id) { results.push({ index: i, error: 'no id', infoKeys: Object.keys(data?.info || {}) }); continue; }
+      
+      const targetPath = `${accountsDir}/${id}.json`;
+      try {
+        fs.writeFileSync(targetPath, JSON.stringify(data, null, 2));
+        const exists = fs.existsSync(targetPath);
+        const size = fs.statSync(targetPath).size;
+        results.push({ index: i, id, label, written: true, exists, size, path: targetPath });
+      } catch (e: any) {
+        results.push({ index: i, id, label, written: false, error: e.message });
+      }
+    }
+    
+    const allFiles = fs.readdirSync(accountsDir);
+    return c.json({ firstBytes, rawLength: raw.length, parsedCount: arr.length, results, accountFiles: allFiles });
+  } catch (e: any) {
+    return c.json({ error: e.message, stack: e.stack?.substring(0, 300) });
+  }
+});
+
 // Debug: xem credentials file trên server
 app.get('/api/debug/creds-file', (c) => {
   try {
