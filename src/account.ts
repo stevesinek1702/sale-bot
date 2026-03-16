@@ -19,6 +19,17 @@ const apiInstances = new Map<string, any>();
 // ═══════════════════════════════════════════════════
 
 /**
+ * Strip BOM và whitespace thừa từ JSON string (fix PowerShell encoding issues)
+ */
+function cleanJsonString(raw: string): string {
+  // Strip BOM (EF BB BF)
+  let cleaned = raw.replace(/^\uFEFF/, '');
+  // Strip null bytes
+  cleaned = cleaned.replace(/\0/g, '');
+  return cleaned.trim();
+}
+
+/**
  * Restore accounts từ env var ZALO_CREDENTIALS hoặc bundled file
  */
 function restoreCredentials(): void {
@@ -31,6 +42,7 @@ function restoreCredentials(): void {
       const json = Buffer.from(envCreds, 'base64').toString('utf-8');
       const stored: StoredAccount[] = JSON.parse(json);
       for (const data of stored) {
+        if (!data?.info?.id) { console.log('⚠️ Skip account without id from env'); continue; }
         fs.writeFileSync(credPath(data.info.id), JSON.stringify(data, null, 2));
         console.log(`📦 Restored từ env: ${data.info.name} (${data.info.id})`);
       }
@@ -45,13 +57,22 @@ function restoreCredentials(): void {
   if (fs.existsSync(BUNDLED_CREDS)) {
     try {
       const raw = fs.readFileSync(BUNDLED_CREDS, 'utf-8');
-      const parsed = JSON.parse(raw);
+      const cleaned = cleanJsonString(raw);
+      const parsed = JSON.parse(cleaned);
       const stored: StoredAccount[] = Array.isArray(parsed) ? parsed : [parsed];
       console.log(`📦 Found ${stored.length} accounts in bundled file`);
       for (const data of stored) {
-        const targetPath = credPath(data.info.id);
+        // Validate: phải có info.id
+        const id = data?.info?.id || data?.credentials?.uid;
+        if (!id) {
+          console.log(`⚠️ Skip account without id: ${JSON.stringify(data?.info || {}).substring(0, 100)}`);
+          continue;
+        }
+        // Fix id nếu lấy từ credentials.uid
+        if (!data.info.id && id) data.info.id = id;
+        const targetPath = credPath(id);
         fs.writeFileSync(targetPath, JSON.stringify(data, null, 2));
-        console.log(`📦 Restored: ${data.info.label} (${data.info.id}) → ${targetPath}`);
+        console.log(`📦 Restored: ${data.info.label || data.info.name} (${id}) → ${targetPath}`);
       }
     } catch (e: any) {
       console.error('⚠️ Lỗi restore từ bundled:', e.message);
