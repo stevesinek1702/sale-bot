@@ -359,6 +359,52 @@ app.get('/api/debug/creds-file', (c) => {
   }
 });
 
+// Debug: xem bundled accounts trên server
+app.get('/api/debug/bundled-accounts', (c) => {
+  try {
+    const bundledDir = './src/accounts';
+    const bundledCreds = './src/credentials.json';
+    const result: any = { bundledDir: { exists: false }, credsFile: { exists: false } };
+
+    if (fs.existsSync(bundledDir)) {
+      const files = fs.readdirSync(bundledDir);
+      result.bundledDir = { exists: true, files };
+      result.bundledAccounts = files.filter(f => f.endsWith('.json')).map(f => {
+        try {
+          const data = JSON.parse(fs.readFileSync(`${bundledDir}/${f}`, 'utf-8'));
+          return { file: f, label: data?.info?.label, status: data?.info?.status, lastLogin: data?.info?.lastLoginAt, created: data?.info?.createdAt };
+        } catch (e: any) { return { file: f, error: e.message }; }
+      });
+    }
+
+    if (fs.existsSync(bundledCreds)) {
+      const raw = fs.readFileSync(bundledCreds, 'utf-8');
+      const cleaned = raw.replace(/^\uFEFF/, '').replace(/\0/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      result.credsFile = { exists: true, count: arr.length };
+      result.credsAccounts = arr.map((a: any) => ({
+        id: a?.info?.id, label: a?.info?.label, status: a?.info?.status, lastLogin: a?.info?.lastLoginAt
+      }));
+    }
+
+    // Also show data/accounts
+    const dataDir = './data/accounts';
+    if (fs.existsSync(dataDir)) {
+      result.dataAccounts = fs.readdirSync(dataDir).filter(f => f.endsWith('.json') && !f.startsWith('qr_')).map(f => {
+        try {
+          const data = JSON.parse(fs.readFileSync(`${dataDir}/${f}`, 'utf-8'));
+          return { file: f, label: data?.info?.label, status: data?.info?.status, lastLogin: data?.info?.lastLoginAt };
+        } catch (e: any) { return { file: f, error: e.message }; }
+      });
+    }
+
+    return c.json(result);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // Export progress (để lưu vào repo, tránh mất khi deploy)
 app.get('/api/progress', (c) => c.json(exportAllProgress()));
 
