@@ -153,6 +153,39 @@ setInterval(async()=>{
   return c.html(html);
 });
 
+// Login lại 1 account (khi bị expired)
+app.post('/api/accounts/:id/login', async (c) => {
+  const id = c.req.param('id');
+  const result = await accounts.login(id);
+  if (result.success) {
+    const api = accounts.getApi(id);
+    const info = accounts.list().find(a => a.id === id);
+    if (api && info) {
+      registerListeners(api, id, config);
+      if (config.sourceGroupLinks.length > 0) {
+        startWorker(api, id, info.name || info.label, config);
+      }
+    }
+  }
+  return c.json({ success: result.success, error: result.error });
+});
+
+// Login tất cả accounts + start workers
+app.post('/api/login-all', async (c) => {
+  const result = await accounts.loginAll();
+  // Start workers cho tất cả accounts online
+  for (const [accountId, api] of accounts.getActiveApis()) {
+    const info = accounts.list().find(a => a.id === accountId);
+    if (info) {
+      registerListeners(api, accountId, config);
+      if (config.sourceGroupLinks.length > 0) {
+        startWorker(api, accountId, info.name || info.label, config);
+      }
+    }
+  }
+  return c.json({ ...result, workers: getWorkersStatus() });
+});
+
 // Xóa account
 app.delete('/api/accounts/:id', (c) => {
   const id = c.req.param('id');
@@ -308,10 +341,25 @@ app.get('/api/debug/creds-file', (c) => {
 // Export progress (để lưu vào repo, tránh mất khi deploy)
 app.get('/api/progress', (c) => c.json(exportAllProgress()));
 
-app.post('/api/workers/restart', (c) => {
-  stopAllWorkers();
-  startAllWorkers();
-  return c.json({ success: true, workers: getWorkersStatus() });
+app.post('/api/workers/restart', async (c) => {
+  try {
+    stopAllWorkers();
+    // Re-login all accounts first
+    const loginResult = await accounts.loginAll();
+    // Then start workers
+    for (const [accountId, api] of accounts.getActiveApis()) {
+      const info = accounts.list().find(a => a.id === accountId);
+      if (info) {
+        registerListeners(api, accountId, config);
+        if (config.sourceGroupLinks.length > 0) {
+          startWorker(api, accountId, info.name || info.label, config);
+        }
+      }
+    }
+    return c.json({ success: true, login: loginResult, workers: getWorkersStatus() });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
 });
 
 // Test gửi hình ngay lập tức (bỏ qua schedule, active hours)
