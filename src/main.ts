@@ -194,6 +194,27 @@ app.delete('/api/accounts/:id', (c) => {
   return c.json({ success: removed });
 });
 
+// Force reset 1 account file trên persistent disk (xóa file cũ, restore từ bundled)
+app.post('/api/accounts/:id/reset', (c) => {
+  const id = c.req.param('id');
+  try {
+    // Xóa file cũ trên persistent disk
+    const diskPath = `./data/accounts/${id}.json`;
+    if (fs.existsSync(diskPath)) fs.unlinkSync(diskPath);
+    // Restore từ bundled
+    initRestore();
+    // Check result
+    const exists = fs.existsSync(diskPath);
+    let info = null;
+    if (exists) {
+      try { info = JSON.parse(fs.readFileSync(diskPath, 'utf-8'))?.info; } catch {}
+    }
+    return c.json({ success: true, fileExists: exists, info });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
+});
+
 // ─── Upload hình mời ───
 
 // Lấy credentials base64 để lưu vào Render env var

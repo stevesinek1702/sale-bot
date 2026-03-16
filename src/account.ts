@@ -124,23 +124,64 @@ function getAllStoredAccounts(): StoredAccount[] {
 // Auto restore khi khởi động - gọi từ main() thay vì top-level
 export function initRestore(): void {
   ensureDir();
+  console.log('🔄 initRestore() starting...');
+
   // Force overwrite data/accounts/ từ src/accounts/ (bundled individual files)
+  // So sánh nội dung: nếu bundled có label/date mới hơn → ghi đè
   if (fs.existsSync(BUNDLED_ACCOUNTS_DIR)) {
     const files = fs.readdirSync(BUNDLED_ACCOUNTS_DIR).filter(f => f.endsWith('.json'));
+    console.log(`📂 Bundled accounts dir: ${files.length} files: ${files.join(', ')}`);
     for (const f of files) {
       const src = path.join(BUNDLED_ACCOUNTS_DIR, f);
       const dst = path.join(ACCOUNTS_DIR, f);
       try {
-        // Luôn ghi đè từ bundled (credentials mới nhất từ repo)
-        fs.copyFileSync(src, dst);
-        console.log(`📦 Copied bundled account: ${f}`);
+        // Đọc bundled file
+        const srcData = JSON.parse(cleanJsonString(fs.readFileSync(src, 'utf-8')));
+        const srcDate = srcData?.info?.lastLoginAt || srcData?.info?.createdAt || '';
+
+        // Đọc existing file (trên persistent disk)
+        let shouldOverwrite = true;
+        if (fs.existsSync(dst)) {
+          try {
+            const dstData = JSON.parse(fs.readFileSync(dst, 'utf-8'));
+            const dstDate = dstData?.info?.lastLoginAt || dstData?.info?.createdAt || '';
+            // Nếu existing file CŨ hơn bundled → ghi đè
+            // Nếu existing file MỚI hơn bundled → giữ nguyên (user đã login QR trên server)
+            if (dstDate > srcDate) {
+              shouldOverwrite = false;
+              console.log(`⏭️ Keep existing ${f} (${dstDate} > ${srcDate})`);
+            } else {
+              console.log(`🔄 Overwrite ${f}: bundled=${srcDate}, existing=${dstDate}`);
+            }
+          } catch {
+            // File hỏng → ghi đè
+            console.log(`🔄 Overwrite ${f}: existing file corrupt`);
+          }
+        }
+
+        if (shouldOverwrite) {
+          fs.writeFileSync(dst, JSON.stringify(srcData, null, 2));
+          console.log(`📦 Restored bundled account: ${f} (${srcData?.info?.label || 'no label'})`);
+        }
       } catch (e: any) {
-        console.error(`❌ Copy failed ${f}: ${e.message}`);
+        console.error(`❌ Restore failed ${f}: ${e.message}`);
       }
     }
+  } else {
+    console.log(`⚠️ Bundled accounts dir not found: ${BUNDLED_ACCOUNTS_DIR}`);
   }
+
   // Fallback: restore từ credentials.json
   restoreCredentials();
+
+  // Log final state
+  const finalFiles = fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('qr_'));
+  for (const f of finalFiles) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(ACCOUNTS_DIR, f), 'utf-8'));
+      console.log(`📋 Account ${f}: label=${data?.info?.label}, status=${data?.info?.status}, lastLogin=${data?.info?.lastLoginAt}`);
+    } catch {}
+  }
 }
 
 export { exportCredentials as exportAllCredentials, getAllStoredAccounts };
