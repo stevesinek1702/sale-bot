@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile --production
 
-# Copy source (bust cache v3 - fix restore + add go endpoint)
+# Copy source (bust cache v4 - fix go endpoint crash)
 COPY src/ src/
 COPY tsconfig.json ./
 

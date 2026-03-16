@@ -299,53 +299,70 @@ app.post('/api/activate', (c) => {
 // All-in-one: Save credentials + Activate workers + Test gửi hình
 // POST /api/go?count=2
 app.post('/api/go', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const count = (body as any)?.count || 2;
-  const steps: string[] = [];
-
-  // Step 1: Save credentials
   try {
-    const stored = getAllStoredAccounts();
-    fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
-    steps.push(`💾 Saved ${stored.length} credentials`);
-  } catch (e: any) {
-    steps.push(`⚠️ Save creds failed: ${e.message}`);
-  }
+    const body = await c.req.json().catch(() => ({}));
+    const count = (body as any)?.count || 2;
+    const steps: string[] = [];
 
-  // Step 2: Activate workers + listeners
-  let activated = 0;
-  for (const [accountId, api] of accounts.getActiveApis()) {
-    const info = accounts.list().find(a => a.id === accountId);
-    if (info) {
-      registerListeners(api, accountId, config);
-      if (config.sourceGroupLinks.length > 0) {
-        startWorker(api, accountId, info.name, config);
-      }
-      activated++;
+    // Step 1: Save credentials
+    try {
+      const stored = getAllStoredAccounts();
+      fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
+      steps.push(`💾 Saved ${stored.length} credentials`);
+    } catch (e: any) {
+      steps.push(`⚠️ Save creds failed: ${e.message}`);
     }
-  }
-  steps.push(`🚀 Activated ${activated} workers`);
 
-  // Step 3: Test send images
-  const results: any[] = [];
-  for (const [accountId, api] of accounts.getActiveApis()) {
-    const info = accounts.list().find(a => a.id === accountId);
-    const result = await testSendImages(api, accountId, config, count);
-    results.push({
-      accountId,
-      accountName: info?.name || info?.label || accountId,
-      ...result,
-    });
-  }
+    // Step 2: Activate workers + listeners
+    let activated = 0;
+    for (const [accountId, api] of accounts.getActiveApis()) {
+      try {
+        const info = accounts.list().find(a => a.id === accountId);
+        if (info) {
+          registerListeners(api, accountId, config);
+          if (config.sourceGroupLinks.length > 0) {
+            startWorker(api, accountId, info.name, config);
+          }
+          activated++;
+        }
+      } catch (e: any) {
+        steps.push(`⚠️ Activate ${accountId}: ${e.message}`);
+      }
+    }
+    steps.push(`🚀 Activated ${activated} workers`);
 
-  if (results.length === 0) {
-    steps.push('❌ Không có account online');
-  } else {
-    const totalSent = results.reduce((s, r) => s + r.sent.length, 0);
-    steps.push(`📨 Sent ${totalSent} images total`);
-  }
+    // Step 3: Test send images
+    const results: any[] = [];
+    for (const [accountId, api] of accounts.getActiveApis()) {
+      try {
+        const info = accounts.list().find(a => a.id === accountId);
+        const result = await testSendImages(api, accountId, config, count);
+        results.push({
+          accountId,
+          accountName: info?.name || info?.label || accountId,
+          ...result,
+        });
+      } catch (e: any) {
+        results.push({
+          accountId,
+          accountName: accountId,
+          sent: [],
+          errors: [`Crash: ${e.message}`],
+        });
+      }
+    }
 
-  return c.json({ success: true, steps, testResults: results });
+    if (results.length === 0) {
+      steps.push('❌ Không có account online');
+    } else {
+      const totalSent = results.reduce((s: number, r: any) => s + (r.sent?.length || 0), 0);
+      steps.push(`📨 Sent ${totalSent} images total`);
+    }
+
+    return c.json({ success: true, steps, testResults: results });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message, stack: e.stack?.substring(0, 500) }, 500);
+  }
 });
 
 // ═══════════════════════════════════════════════════
@@ -561,19 +578,22 @@ async function goTest(){
   d.className='st l';d.innerHTML='⏳ Đang save + activate + test gửi hình (chờ 30-60s)...';
   try{
     const r=await fetch(U+'/api/go',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({count:2})});
-    const j=await r.json();
+    const txt=await r.text();
+    let j;
+    try{j=JSON.parse(txt)}catch{d.className='st e';d.innerHTML='❌ Server error: '+txt.substring(0,200);return}
     if(j.success){
       let html='<div class="st s">✅ Hoàn tất!<br>';
-      j.steps.forEach(s=>html+=s+'<br>');
+      (j.steps||[]).forEach(s=>html+=s+'<br>');
       if(j.testResults?.length>0){
         j.testResults.forEach(r=>{
-          html+='<br><b>'+r.accountName+':</b><br>';
+          html+='<br><b>'+(r.accountName||r.accountId)+':</b><br>';
           if(r.sent?.length>0)r.sent.forEach(s=>html+='  ✅ '+s+'<br>');
           if(r.errors?.length>0)r.errors.forEach(e=>html+='  ❌ '+e+'<br>');
+          if(!r.sent?.length&&!r.errors?.length)html+='  (no results)<br>';
         });
       }
       html+='</div>';d.innerHTML=html;
-    }else throw new Error(j.error||'Lỗi');
+    }else{d.className='st e';d.innerHTML='❌ '+(j.error||JSON.stringify(j))}
   }catch(e){d.className='st e';d.innerHTML='❌ '+e.message}
 }
 async function getCreds(){
