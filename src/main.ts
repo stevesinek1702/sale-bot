@@ -225,6 +225,30 @@ app.put('/api/config', async (c) => {
 
 app.get('/api/workers', (c) => c.json({ workers: getWorkersStatus() }));
 
+// Debug: xem credentials file trên server
+app.get('/api/debug/creds-file', (c) => {
+  try {
+    const bundled = './src/credentials.json';
+    const exists = fs.existsSync(bundled);
+    let content = '';
+    let count = 0;
+    let ids: string[] = [];
+    if (exists) {
+      const raw = fs.readFileSync(bundled, 'utf-8');
+      const parsed = JSON.parse(raw);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      count = arr.length;
+      ids = arr.map((a: any) => `${a.info?.id} (${a.info?.label})`);
+      content = raw.substring(0, 200);
+    }
+    const accountsDir = './data/accounts';
+    const files = fs.existsSync(accountsDir) ? fs.readdirSync(accountsDir) : [];
+    return c.json({ bundledExists: exists, bundledCount: count, bundledIds: ids, bundledPreview: content, accountFiles: files });
+  } catch (e: any) {
+    return c.json({ error: e.message });
+  }
+});
+
 // Export progress (để lưu vào repo, tránh mất khi deploy)
 app.get('/api/progress', (c) => c.json(exportAllProgress()));
 
