@@ -120,8 +120,10 @@ function getAllStoredAccounts(): StoredAccount[] {
   return stored;
 }
 
-// Auto restore khi khởi động
-restoreCredentials();
+// Auto restore khi khởi động - gọi từ main() thay vì top-level
+export function initRestore(): void {
+  restoreCredentials();
+}
 
 export { exportCredentials as exportAllCredentials, getAllStoredAccounts };
 

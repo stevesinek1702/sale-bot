@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import { Hono } from 'hono';
-import { accounts, exportAllCredentials, getAllStoredAccounts } from './account.js';
+import { accounts, exportAllCredentials, getAllStoredAccounts, initRestore } from './account.js';
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
 import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress, testSendImages } from './worker.js';
 import { registerListeners } from './listener.js';
@@ -462,7 +462,8 @@ async function main() {
   console.log(`   GET  /api/workers      - Status workers`);
   console.log('');
 
-  // 2. Login tất cả accounts đã lưu
+  // 2. Restore credentials từ bundled file + Login tất cả accounts
+  initRestore();
   const accountCount = accounts.count();
   if (accountCount > 0) {
     console.log(`📱 Tìm thấy ${accountCount} tài khoản, đang login...`);

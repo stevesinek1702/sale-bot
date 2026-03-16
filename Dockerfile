@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile --production
 
-# Copy source (bust cache v7 - debug restore endpoint)
+# Copy source (bust cache v8 - fix restore timing)
 COPY src/ src/
 COPY tsconfig.json ./
 
