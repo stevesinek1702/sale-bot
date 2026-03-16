@@ -123,6 +123,23 @@ function getAllStoredAccounts(): StoredAccount[] {
 
 // Auto restore khi khởi động - gọi từ main() thay vì top-level
 export function initRestore(): void {
+  ensureDir();
+  // Force overwrite data/accounts/ từ src/accounts/ (bundled individual files)
+  if (fs.existsSync(BUNDLED_ACCOUNTS_DIR)) {
+    const files = fs.readdirSync(BUNDLED_ACCOUNTS_DIR).filter(f => f.endsWith('.json'));
+    for (const f of files) {
+      const src = path.join(BUNDLED_ACCOUNTS_DIR, f);
+      const dst = path.join(ACCOUNTS_DIR, f);
+      try {
+        // Luôn ghi đè từ bundled (credentials mới nhất từ repo)
+        fs.copyFileSync(src, dst);
+        console.log(`📦 Copied bundled account: ${f}`);
+      } catch (e: any) {
+        console.error(`❌ Copy failed ${f}: ${e.message}`);
+      }
+    }
+  }
+  // Fallback: restore từ credentials.json
   restoreCredentials();
 }
 
