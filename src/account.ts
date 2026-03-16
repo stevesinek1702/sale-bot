@@ -41,19 +41,26 @@ function restoreCredentials(): void {
   }
 
   // Ưu tiên 2: bundled file trong repo
+  console.log(`📂 Checking bundled creds: ${BUNDLED_CREDS}, exists: ${fs.existsSync(BUNDLED_CREDS)}`);
   if (fs.existsSync(BUNDLED_CREDS)) {
     try {
       const raw = fs.readFileSync(BUNDLED_CREDS, 'utf-8');
       const parsed = JSON.parse(raw);
       const stored: StoredAccount[] = Array.isArray(parsed) ? parsed : [parsed];
+      console.log(`📦 Found ${stored.length} accounts in bundled file`);
       for (const data of stored) {
-        fs.writeFileSync(credPath(data.info.id), JSON.stringify(data, null, 2));
-        console.log(`📦 Restored từ bundled: ${data.info.label} (${data.info.id})`);
+        const targetPath = credPath(data.info.id);
+        fs.writeFileSync(targetPath, JSON.stringify(data, null, 2));
+        console.log(`📦 Restored: ${data.info.label} (${data.info.id}) → ${targetPath}`);
       }
     } catch (e: any) {
       console.error('⚠️ Lỗi restore từ bundled:', e.message);
     }
   }
+
+  // Log what's in accounts dir
+  const files = fs.readdirSync(ACCOUNTS_DIR);
+  console.log(`📂 Accounts dir has ${files.length} files: ${files.join(', ')}`);
 }
 
 /**
@@ -133,7 +140,7 @@ export const accounts = {
   /** Danh sách tất cả accounts */
   list(): AccountInfo[] {
     ensureDir();
-    const files = fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json'));
+    const files = fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('qr_'));
     return files.map(f => {
       try {
         const data: StoredAccount = JSON.parse(fs.readFileSync(path.join(ACCOUNTS_DIR, f), 'utf-8'));
@@ -248,7 +255,7 @@ export const accounts = {
   /** Số lượng accounts */
   count(): number {
     ensureDir();
-    return fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json')).length;
+    return fs.readdirSync(ACCOUNTS_DIR).filter(f => f.endsWith('.json') && !f.startsWith('qr_')).length;
   },
 
   /** Account có online không */
