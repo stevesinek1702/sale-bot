@@ -473,6 +473,93 @@ export function getWorkersStatus(): Array<{
 }
 
 /**
+ * Test gửi hình ngay lập tức cho N member (bỏ qua active hours, delay)
+ */
+export async function testSendImages(
+  api: any,
+  accountId: string,
+  config: BotConfig,
+  count: number = 2,
+): Promise<{ sent: string[]; errors: string[] }> {
+  const sent: string[] = [];
+  const errors: string[] = [];
+
+  const imagePath = path.resolve('./data', config.inviteImagePath);
+  if (!fs.existsSync(imagePath)) {
+    errors.push(`Không tìm thấy hình: ${imagePath}`);
+    return { sent, errors };
+  }
+
+  const imageBuffer = fs.readFileSync(imagePath);
+  let metadata: { width?: number; height?: number };
+  try {
+    metadata = await sharp(imageBuffer).metadata();
+  } catch {
+    metadata = { width: 800, height: 600 };
+  }
+
+  // Load progress
+  const progress = loadProgress(accountId);
+
+  for (const groupLink of config.sourceGroupLinks) {
+    if (sent.length >= count) break;
+
+    let members: GroupMember[];
+    try {
+      const result = await scanGroupMembers(api, groupLink);
+      members = result.members;
+      log(accountId, `🔍 Test scan "${result.groupName}": ${members.length} members`);
+    } catch (e: any) {
+      errors.push(`Scan error ${groupLink}: ${e.message}`);
+      continue;
+    }
+
+    const doneIds = new Set(progress.imageSent[groupLink] || []);
+    const unsent = members.filter(m => !doneIds.has(m.id));
+
+    for (const member of unsent) {
+      if (sent.length >= count) break;
+
+      try {
+        await api.sendMessage(
+          {
+            msg: '',
+            attachments: [{
+              filename: 'invite.jpg',
+              data: imageBuffer,
+              metadata: {
+                width: metadata.width || 800,
+                height: metadata.height || 600,
+                totalSize: imageBuffer.length,
+              },
+            }],
+          },
+          member.id,
+          0,
+        );
+
+        // Track progress
+        if (!progress.imageSent[groupLink]) progress.imageSent[groupLink] = [];
+        progress.imageSent[groupLink].push(member.id);
+        progress.imageSendDaily++;
+        saveProgress(progress);
+
+        sent.push(`${member.name} (${member.id})`);
+        log(accountId, `✅ TEST IMG → ${member.name}`);
+
+        // Delay nhỏ giữa mỗi lần gửi (3-5s) để tránh spam
+        await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+      } catch (e: any) {
+        errors.push(`${member.name}: ${e.message}`);
+        log(accountId, `❌ TEST IMG ${member.name}: ${e.message}`);
+      }
+    }
+  }
+
+  return { sent, errors };
+}
+
+/**
  * Export tất cả progress files (để lưu vào repo)
  */
 export function exportAllProgress(): Record<string, AccountProgress> {

@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { Hono } from 'hono';
 import { accounts, exportAllCredentials, getAllStoredAccounts } from './account.js';
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
-import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress } from './worker.js';
+import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress, testSendImages } from './worker.js';
 import { registerListeners } from './listener.js';
 
 let config = loadConfig();
@@ -232,6 +232,30 @@ app.post('/api/workers/restart', (c) => {
   stopAllWorkers();
   startAllWorkers();
   return c.json({ success: true, workers: getWorkersStatus() });
+});
+
+// Test gửi hình ngay lập tức (bỏ qua schedule, active hours)
+// POST /api/test-send?count=2 → gửi hình cho 2 member/account
+app.post('/api/test-send', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const count = (body as any)?.count || 2;
+  const results: any[] = [];
+
+  for (const [accountId, api] of accounts.getActiveApis()) {
+    const info = accounts.list().find(a => a.id === accountId);
+    const result = await testSendImages(api, accountId, config, count);
+    results.push({
+      accountId,
+      accountName: info?.name || info?.label || accountId,
+      ...result,
+    });
+  }
+
+  if (results.length === 0) {
+    return c.json({ error: 'Không có account nào online. Login trước!' }, 400);
+  }
+
+  return c.json({ success: true, results });
 });
 
 // Kích hoạt listener cho account đã login (dùng khi login QR xong mà listener chưa chạy)
