@@ -390,6 +390,26 @@ app.get('/api/debug/creds-file', (c) => {
   }
 });
 
+// Force restore 1 account từ credentials.json (bypass persistent disk + bundled accounts)
+app.post('/api/accounts/:id/force-restore', (c) => {
+  const id = c.req.param('id');
+  try {
+    const credsFile = './src/credentials.json';
+    if (!fs.existsSync(credsFile)) return c.json({ error: 'No credentials.json' }, 404);
+    const raw = fs.readFileSync(credsFile, 'utf-8').replace(/^\uFEFF/, '').trim();
+    const arr = JSON.parse(raw);
+    const account = (Array.isArray(arr) ? arr : [arr]).find((a: any) => a?.info?.id === id);
+    if (!account) return c.json({ error: `Account ${id} not found in credentials.json` }, 404);
+
+    // Ghi đè vào data/accounts/
+    const targetPath = `./data/accounts/${id}.json`;
+    fs.writeFileSync(targetPath, JSON.stringify(account, null, 2));
+    return c.json({ success: true, label: account.info.label, status: account.info.status, lastLogin: account.info.lastLoginAt });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 // Debug: xem bundled accounts trên server
 app.get('/api/debug/bundled-accounts', (c) => {
   try {
