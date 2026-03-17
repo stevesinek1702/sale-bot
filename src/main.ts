@@ -19,6 +19,9 @@ function hasGroups(accountId: string, config: BotConfig): boolean {
   return (config.accountSourceGroups?.[accountId]?.length || config.sourceGroupLinks.length) > 0;
 }
 
+// Track login status cho QR login
+const loginStatus = new Map<string, { status: string; error?: string; account?: any; time: string }>();
+
 let config = loadConfig();
 
 // ═══════════════════════════════════════════════════
@@ -80,10 +83,12 @@ app.post('/api/accounts/add', async (c) => {
 
   // Start login process (async, chạy background)
   const loginPromise = accounts.addByQR(label, qrPath);
+  loginStatus.set(qrId, { status: 'waiting_scan', time: new Date().toISOString() });
 
   // Khi login xong → đăng ký listener + start worker + save credentials
   loginPromise.then((result) => {
     if (result.success && result.account) {
+      loginStatus.set(qrId, { status: 'success', account: result.account, time: new Date().toISOString() });
       const api = accounts.getApi(result.account.id);
       if (api) {
         console.log(`🎉 Login thành công: ${result.account.name}, đang đăng ký listener...`);
@@ -100,8 +105,14 @@ app.post('/api/accounts/add', async (c) => {
           console.log('⚠️ Không lưu được credentials file:', e.message);
         }
       }
+    } else {
+      loginStatus.set(qrId, { status: 'failed', error: result.error, time: new Date().toISOString() });
+      console.log(`❌ Login QR failed: ${result.error}`);
     }
-  }).catch(() => {});
+  }).catch((e: any) => {
+    loginStatus.set(qrId, { status: 'error', error: e.message, time: new Date().toISOString() });
+    console.log(`❌ Login QR crash: ${e.message}`);
+  });
 
   // Chờ 3s để QR file được tạo
   await new Promise(r => setTimeout(r, 3000));
@@ -189,6 +200,21 @@ app.post('/api/login-all', async (c) => {
     }
   }
   return c.json({ ...result, workers: getWorkersStatus() });
+});
+
+// Xem status login QR
+app.get('/api/accounts/login-status/:qrId', (c) => {
+  const qrId = c.req.param('qrId');
+  const status = loginStatus.get(qrId);
+  if (!status) return c.json({ error: 'QR ID not found' }, 404);
+  return c.json(status);
+});
+
+// Xem tất cả login status gần đây
+app.get('/api/debug/login-status', (c) => {
+  const all: any = {};
+  for (const [k, v] of loginStatus) all[k] = v;
+  return c.json(all);
 });
 
 // Xóa account
