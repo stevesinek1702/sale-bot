@@ -70,12 +70,12 @@ const DEFAULT_CONFIG: BotConfig = {
     end: 23,
   },
   delays: {
-    friendRequestMin: 5,
-    friendRequestMax: 18,
-    imageSendMin: 5,
-    imageSendMax: 18,
-    groupPullMin: 30,
-    groupPullMax: 60,
+    friendRequestMin: 3,
+    friendRequestMax: 10,
+    imageSendMin: 3,
+    imageSendMax: 10,
+    groupPullMin: 20,
+    groupPullMax: 45,
   },
 };
 

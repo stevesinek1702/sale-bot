@@ -164,10 +164,10 @@ function isActiveHours(config: BotConfig): boolean {
 }
 
 function randomDelay(minMinutes: number, maxMinutes: number): number {
-  // 20% chance nghỉ dài gấp 2-4 lần (giả lập người đi làm việc khác)
-  const isLongBreak = Math.random() < 0.2;
+  // 10% chance nghỉ dài gấp 1.5-2.5 lần
+  const isLongBreak = Math.random() < 0.1;
   const base = minMinutes + Math.random() * (maxMinutes - minMinutes);
-  const multiplier = isLongBreak ? 2 + Math.random() * 2 : 1;
+  const multiplier = isLongBreak ? 1.5 + Math.random() : 1;
   return base * multiplier * 60 * 1000;
 }
 
