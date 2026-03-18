@@ -459,6 +459,29 @@ app.get('/api/debug/bundled-accounts', (c) => {
 // Export progress (để lưu vào repo, tránh mất khi deploy)
 app.get('/api/progress', (c) => c.json(exportAllProgress()));
 
+// Sync progress từ server → bundled (src/progress/) để persist qua deploy
+app.post('/api/progress/sync', (c) => {
+  try {
+    const progressDir = './data/progress';
+    const bundledDir = './src/progress';
+    if (!fs.existsSync(bundledDir)) fs.mkdirSync(bundledDir, { recursive: true });
+    
+    const files = fs.existsSync(progressDir) 
+      ? fs.readdirSync(progressDir).filter(f => f.endsWith('.json'))
+      : [];
+    
+    const synced: string[] = [];
+    for (const f of files) {
+      fs.copyFileSync(`${progressDir}/${f}`, `${bundledDir}/${f}`);
+      synced.push(f);
+    }
+    
+    return c.json({ success: true, synced, message: `Synced ${synced.length} progress files to bundled` });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
 app.post('/api/workers/restart', async (c) => {
   try {
     stopAllWorkers();

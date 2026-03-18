@@ -99,28 +99,54 @@ function progressPath(accountId: string): string {
 
 /**
  * Restore progress từ bundled files (src/progress/)
- * CHỈ dùng bundled nếu KHÔNG có file trên persistent disk.
- * Persistent disk luôn là source of truth.
+ * 
+ * Logic ưu tiên:
+ * 1. Nếu persistent disk CÓ file → so sánh với bundled, dùng cái nào NHIỀU data hơn
+ * 2. Nếu persistent disk KHÔNG có → copy từ bundled
+ * 3. Nếu cả 2 đều không có → tạo mới
  */
 function restoreProgress(accountId: string): void {
   const targetPath = progressPath(accountId);
+  const bundledPath = path.join(BUNDLED_PROGRESS_DIR, `${accountId}.json`);
   
-  // Nếu đã có trên persistent disk → KHÔNG overwrite
-  if (fs.existsSync(targetPath)) {
+  const diskExists = fs.existsSync(targetPath);
+  const bundledExists = fs.existsSync(bundledPath);
+  
+  if (diskExists && bundledExists) {
+    // So sánh: dùng cái nào có nhiều imageSent hơn (source of truth)
     try {
-      const data = JSON.parse(fs.readFileSync(targetPath, 'utf-8'));
-      const totalSent = Object.values(data.imageSent || {}).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
-      log(accountId, `📂 Progress từ disk: IMG=${totalSent} sent, daily=${data.imageSendDaily}, date=${data.lastDate}`);
-    } catch {}
+      const diskData: AccountProgress = JSON.parse(fs.readFileSync(targetPath, 'utf-8'));
+      const bundledData: AccountProgress = JSON.parse(fs.readFileSync(bundledPath, 'utf-8'));
+      
+      const diskTotal = Object.values(diskData.imageSent || {}).reduce((s, arr) => s + arr.length, 0);
+      const bundledTotal = Object.values(bundledData.imageSent || {}).reduce((s, arr) => s + arr.length, 0);
+      
+      if (bundledTotal > diskTotal) {
+        // Bundled mới hơn (vd: vừa deploy lại với progress mới từ repo)
+        fs.copyFileSync(bundledPath, targetPath);
+        log(accountId, `📦 Progress: bundled (${bundledTotal} IMG) > disk (${diskTotal} IMG) → dùng bundled`);
+      } else {
+        log(accountId, `📂 Progress: disk (${diskTotal} IMG) >= bundled (${bundledTotal} IMG) → giữ disk`);
+      }
+    } catch {
+      log(accountId, `📂 Progress: dùng disk (parse error khi so sánh)`);
+    }
     return;
   }
   
-  // Fallback: copy từ bundled
-  const bundledPath = path.join(BUNDLED_PROGRESS_DIR, `${accountId}.json`);
-  if (fs.existsSync(bundledPath)) {
+  if (!diskExists && bundledExists) {
     ensureProgressDir();
     fs.copyFileSync(bundledPath, targetPath);
-    log(accountId, `📦 Restored progress từ bundled (first deploy)`);
+    log(accountId, `📦 Progress: restored từ bundled (disk trống)`);
+    return;
+  }
+  
+  if (diskExists) {
+    try {
+      const data = JSON.parse(fs.readFileSync(targetPath, 'utf-8'));
+      const total = Object.values(data.imageSent || {}).reduce((s: number, arr: any) => s + (arr?.length || 0), 0);
+      log(accountId, `📂 Progress: disk only, IMG=${total} sent, date=${data.lastDate}`);
+    } catch {}
   }
 }
 
@@ -147,7 +173,14 @@ function loadProgress(accountId: string): AccountProgress {
 
 function saveProgress(progress: AccountProgress): void {
   ensureProgressDir();
-  fs.writeFileSync(progressPath(progress.accountId), JSON.stringify(progress, null, 2));
+  const json = JSON.stringify(progress, null, 2);
+  fs.writeFileSync(progressPath(progress.accountId), json);
+  
+  // Cũng lưu vào bundled (src/progress/) để persist qua deploy
+  try {
+    if (!fs.existsSync(BUNDLED_PROGRESS_DIR)) fs.mkdirSync(BUNDLED_PROGRESS_DIR, { recursive: true });
+    fs.writeFileSync(path.join(BUNDLED_PROGRESS_DIR, `${progress.accountId}.json`), json);
+  } catch {}
 }
 
 function resetDailyIfNeeded(progress: AccountProgress): void {
