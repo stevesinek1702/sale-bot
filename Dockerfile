@@ -18,8 +18,9 @@ COPY src/accounts/ data/accounts/
 # Copy invite image
 COPY data/images/invite.jpg data/images/invite.jpg
 
-# Copy progress
-COPY src/progress/ data/progress/
+# Copy progress (chỉ dùng làm fallback, persistent disk sẽ override)
+# KHÔNG copy vào data/progress/ vì persistent disk mount sẽ quản lý
+# restoreProgress() trong code sẽ tự copy từ src/progress/ nếu cần
 
 EXPOSE 3000
 ENV PORT=3000

@@ -99,14 +99,28 @@ function progressPath(accountId: string): string {
 
 /**
  * Restore progress từ bundled files (src/progress/)
+ * CHỈ dùng bundled nếu KHÔNG có file trên persistent disk.
+ * Persistent disk luôn là source of truth.
  */
 function restoreProgress(accountId: string): void {
-  const bundledPath = path.join(BUNDLED_PROGRESS_DIR, `${accountId}.json`);
   const targetPath = progressPath(accountId);
-  if (!fs.existsSync(targetPath) && fs.existsSync(bundledPath)) {
+  
+  // Nếu đã có trên persistent disk → KHÔNG overwrite
+  if (fs.existsSync(targetPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(targetPath, 'utf-8'));
+      const totalSent = Object.values(data.imageSent || {}).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
+      log(accountId, `📂 Progress từ disk: IMG=${totalSent} sent, daily=${data.imageSendDaily}, date=${data.lastDate}`);
+    } catch {}
+    return;
+  }
+  
+  // Fallback: copy từ bundled
+  const bundledPath = path.join(BUNDLED_PROGRESS_DIR, `${accountId}.json`);
+  if (fs.existsSync(bundledPath)) {
     ensureProgressDir();
     fs.copyFileSync(bundledPath, targetPath);
-    console.log(`📦 Restored progress cho ${accountId}`);
+    log(accountId, `📦 Restored progress từ bundled (first deploy)`);
   }
 }
 
@@ -188,6 +202,10 @@ function getSourceGroups(accountId: string, config: BotConfig): string[] {
 
 /**
  * Tìm member chưa xử lý từ danh sách group
+ * 
+ * Logic: Gửi LẦN LƯỢT từ đầu đến cuối danh sách.
+ * Khi TẤT CẢ member đã gửi xong → reset progress cho group đó → bắt đầu vòng mới.
+ * Shared set cũng được clear cho group đó khi reset.
  */
 async function findNextMember(
   api: any,
@@ -197,7 +215,6 @@ async function findNextMember(
 ): Promise<{ member: GroupMember; groupLink: string } | null> {
   const progress = state.progress;
 
-  // Scan TẤT CẢ groups từ đầu cho mỗi action (không dùng shared currentGroupIndex)
   const sourceGroups = getSourceGroups(state.accountId, config);
   for (let i = 0; i < sourceGroups.length; i++) {
     const groupLink = sourceGroups[i];
@@ -221,9 +238,28 @@ async function findNextMember(
     const sharedDone = sharedSent[trackKey];
     const unsent = state.cachedMembers.filter(m => !doneIds.has(m.id) && !sharedDone.has(m.id));
 
-    if (unsent.length === 0) continue;
+    if (unsent.length > 0) {
+      return { member: unsent[0], groupLink };
+    }
 
-    return { member: unsent[0], groupLink };
+    // TẤT CẢ member đã gửi xong → reset cho vòng mới
+    if (state.cachedMembers.length > 0 && doneIds.size >= state.cachedMembers.length) {
+      const totalSent = doneIds.size;
+      log(state.accountId, `🔄 [${trackKey}] Đã gửi hết ${totalSent}/${state.cachedMembers.length} member trong "${state.cachedGroupName}" → Reset vòng mới`);
+      
+      // Clear progress cho group này
+      progress[trackKey][groupLink] = [];
+      
+      // Clear shared set cho các member trong group này (để vòng mới gửi lại)
+      for (const m of state.cachedMembers) {
+        sharedDone.delete(m.id);
+      }
+      
+      saveProgress(progress);
+      
+      // Trả về member đầu tiên của vòng mới
+      return { member: state.cachedMembers[0], groupLink };
+    }
   }
 
   return null;
