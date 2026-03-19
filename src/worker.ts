@@ -270,23 +270,7 @@ async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<
   const { member, groupLink } = next;
   log(state.accountId, `👤 Xử lý: ${member.name} (${member.id})`);
 
-  // 1. Friend Request
-  if (progress.friendRequestDaily < config.limits.friendRequestsPerDay) {
-    try {
-      await api.sendFriendRequest(config.friendRequestMessage, member.id);
-      progress.friendRequestDaily++;
-      log(state.accountId, `✅ FR [${progress.friendRequestDaily}] → ${member.name}`);
-    } catch (e: any) {
-      if ([225, 214, 311, -201].includes(e.code)) {
-        progress.friendRequestDaily++;
-      }
-      log(state.accountId, `⚠️ FR ${member.name}: ${e.message} (${e.code || ''})`);
-    }
-    markDone(progress, 'friendRequested', groupLink, member.id);
-    await sleep(2000 + Math.random() * 3000);
-  }
-
-  // 2. Gửi hình mời
+  // 1. Gửi hình mời (ưu tiên chính)
   const imagePath = path.resolve('./data', config.inviteImagePath);
   if (fs.existsSync(imagePath)) {
     try {
@@ -303,6 +287,21 @@ async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<
     }
     markDone(progress, 'imageSent', groupLink, member.id);
     await sleep(2000 + Math.random() * 3000);
+  }
+
+  // 2. Friend Request (phụ, không bắt buộc)
+  if (progress.friendRequestDaily < config.limits.friendRequestsPerDay) {
+    try {
+      await api.sendFriendRequest(config.friendRequestMessage, member.id);
+      progress.friendRequestDaily++;
+      log(state.accountId, `✅ FR [${progress.friendRequestDaily}] → ${member.name}`);
+    } catch (e: any) {
+      if ([225, 214, 311, -201].includes(e.code)) {
+        progress.friendRequestDaily++;
+      }
+      log(state.accountId, `⚠️ FR ${member.name}: ${e.message} (${e.code || ''})`);
+    }
+    markDone(progress, 'friendRequested', groupLink, member.id);
   }
 
   // 3. Kéo vào group đích
