@@ -183,12 +183,11 @@ async function getMembers(api: any, state: WorkerState, groupLink: string): Prom
 }
 
 // ═══════════════════════════════════════════════════
-// FIND NEXT — Tìm người chưa gửi, TUẦN TỰ qua tất cả groups
+// FIND NEXT — Tìm người chưa xử lý (dựa trên imageSent làm master)
 // ═══════════════════════════════════════════════════
 
-async function findNext(
+async function findNextPerson(
   api: any, state: WorkerState, config: BotConfig,
-  trackKey: 'friendRequested' | 'imageSent' | 'groupPulled',
 ): Promise<{ member: GroupMember; groupLink: string } | null> {
   const progress = state.progress;
   const groups = getSourceGroups(state.accountId, config);
@@ -202,21 +201,28 @@ async function findNext(
       continue;
     }
 
-    const doneIds = new Set(progress[trackKey][groupLink] || []);
-    const sharedDone = sharedSent[trackKey];
+    // Dùng imageSent làm master list (vì đây là action chính)
+    const doneIds = new Set(progress.imageSent[groupLink] || []);
+    const sharedDone = sharedSent.imageSent;
 
-    // Tìm người đầu tiên chưa gửi
     for (const m of members) {
       if (!doneIds.has(m.id) && !sharedDone.has(m.id)) {
         return { member: m, groupLink };
       }
     }
 
-    // Hết người trong group này → check reset vòng mới
+    // Hết người → reset vòng mới
     if (members.length > 0 && doneIds.size >= members.length) {
-      log(state.accountId, `🔄 [${trackKey}] Hết ${members.length} member trong group → reset vòng mới`);
-      progress[trackKey][groupLink] = [];
-      for (const m of members) sharedDone.delete(m.id);
+      log(state.accountId, `🔄 Hết ${members.length} member trong group → reset vòng mới`);
+      // Reset TẤT CẢ tracking cho group này
+      progress.imageSent[groupLink] = [];
+      progress.friendRequested[groupLink] = [];
+      progress.groupPulled[groupLink] = [];
+      for (const m of members) {
+        sharedSent.imageSent.delete(m.id);
+        sharedSent.friendRequested.delete(m.id);
+        sharedSent.groupPulled.delete(m.id);
+      }
       saveProgress(progress);
       if (members.length > 0) return { member: members[0], groupLink };
     }
@@ -224,15 +230,16 @@ async function findNext(
   return null;
 }
 
+// ═══════════════════════════════════════════════════
+// MAIN LOOP — Mỗi lần xử lý 1 NGƯỜI: FR → IMG → PULL
+// Không bao giờ gửi trùng. Chuyển sang người mới mỗi lần.
+// ═══════════════════════════════════════════════════
+
 function markDone(progress: AccountProgress, trackKey: string, groupLink: string, userId: string): void {
   if (!(progress as any)[trackKey][groupLink]) (progress as any)[trackKey][groupLink] = [];
   (progress as any)[trackKey][groupLink].push(userId);
   if (trackKey in sharedSent) (sharedSent as any)[trackKey].add(userId);
 }
-
-// ═══════════════════════════════════════════════════
-// MAIN LOOP — 1 timer duy nhất, xử lý tuần tự FR → IMG → PULL
-// ═══════════════════════════════════════════════════
 
 async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<void> {
   if (!state.running) return;
@@ -245,108 +252,92 @@ async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<
   const progress = state.progress;
   resetDailyIfNeeded(progress);
 
-  let didSomething = false;
+  // Check daily limit (dùng imageSend làm counter chính)
+  if (progress.imageSendDaily >= config.limits.imageSendsPerDay) {
+    log(state.accountId, `⏸️ Đạt limit ${progress.imageSendDaily}/${config.limits.imageSendsPerDay} IMG hôm nay`);
+    state.timer = setTimeout(() => doWork(api, state, config), 30 * 60 * 1000);
+    return;
+  }
+
+  // Tìm 1 NGƯỜI mới chưa gửi
+  const next = await findNextPerson(api, state, config);
+  if (!next) {
+    log(state.accountId, '⏸️ Hết member trong tất cả groups');
+    state.timer = setTimeout(() => doWork(api, state, config), 30 * 60 * 1000);
+    return;
+  }
+
+  const { member, groupLink } = next;
+  log(state.accountId, `👤 Xử lý: ${member.name} (${member.id})`);
 
   // 1. Friend Request
   if (progress.friendRequestDaily < config.limits.friendRequestsPerDay) {
     try {
-      const next = await findNext(api, state, config, 'friendRequested');
-      if (next) {
-        try {
-          await api.sendFriendRequest(config.friendRequestMessage, next.member.id);
-          progress.friendRequestDaily++;
-          log(state.accountId, `✅ FR [${progress.friendRequestDaily}/${config.limits.friendRequestsPerDay}] → ${next.member.name}`);
-        } catch (e: any) {
-          if ([225, 214, 311, -201].includes(e.code)) {
-            progress.friendRequestDaily++;
-            log(state.accountId, `✅ FR [${progress.friendRequestDaily}] ${next.member.name} (${e.code})`);
-          } else {
-            log(state.accountId, `❌ FR ${next.member.name}: ${e.message}`);
-          }
-        }
-        markDone(progress, 'friendRequested', next.groupLink, next.member.id);
-        didSomething = true;
-      }
+      await api.sendFriendRequest(config.friendRequestMessage, member.id);
+      progress.friendRequestDaily++;
+      log(state.accountId, `✅ FR [${progress.friendRequestDaily}] → ${member.name}`);
     } catch (e: any) {
-      log(state.accountId, `❌ FR crash: ${e.message}`);
+      if ([225, 214, 311, -201].includes(e.code)) {
+        progress.friendRequestDaily++;
+      }
+      log(state.accountId, `⚠️ FR ${member.name}: ${e.message} (${e.code || ''})`);
     }
+    markDone(progress, 'friendRequested', groupLink, member.id);
+    await sleep(2000 + Math.random() * 3000);
   }
 
-  // 2. Image Send
-  if (progress.imageSendDaily < config.limits.imageSendsPerDay) {
+  // 2. Gửi hình mời
+  const imagePath = path.resolve('./data', config.inviteImagePath);
+  if (fs.existsSync(imagePath)) {
     try {
-      const imagePath = path.resolve('./data', config.inviteImagePath);
-      if (fs.existsSync(imagePath)) {
-        const next = await findNext(api, state, config, 'imageSent');
-        if (next) {
-          try {
-            const imageBuffer = fs.readFileSync(imagePath);
-            const metadata = await sharp(imageBuffer).metadata();
-            await api.sendMessage(
-              { msg: '', attachments: [{ filename: 'invite.jpg', data: imageBuffer, metadata: { width: metadata.width || 800, height: metadata.height || 600, totalSize: imageBuffer.length } }] },
-              next.member.id, 0,
-            );
-            progress.imageSendDaily++;
-            log(state.accountId, `✅ IMG [${progress.imageSendDaily}/${config.limits.imageSendsPerDay}] → ${next.member.name}`);
-          } catch (e: any) {
-            log(state.accountId, `❌ IMG ${next.member.name}: ${e.message}`);
-          }
-          markDone(progress, 'imageSent', next.groupLink, next.member.id);
-          didSomething = true;
-        }
-      }
+      const imageBuffer = fs.readFileSync(imagePath);
+      const metadata = await sharp(imageBuffer).metadata();
+      await api.sendMessage(
+        { msg: '', attachments: [{ filename: 'invite.jpg', data: imageBuffer, metadata: { width: metadata.width || 800, height: metadata.height || 600, totalSize: imageBuffer.length } }] },
+        member.id, 0,
+      );
+      progress.imageSendDaily++;
+      log(state.accountId, `✅ IMG [${progress.imageSendDaily}/${config.limits.imageSendsPerDay}] → ${member.name}`);
     } catch (e: any) {
-      log(state.accountId, `❌ IMG crash: ${e.message}`);
+      log(state.accountId, `❌ IMG ${member.name}: ${e.message}`);
     }
+    markDone(progress, 'imageSent', groupLink, member.id);
+    await sleep(2000 + Math.random() * 3000);
   }
 
-  // 3. Group Pull
+  // 3. Kéo vào group đích
   if (config.targetGroupLink && progress.groupPullDaily < config.limits.groupPullsPerDay) {
     try {
-      const next = await findNext(api, state, config, 'groupPulled');
-      if (next) {
-        try {
-          const targetInfo = await api.getGroupLinkInfo({ link: config.targetGroupLink, memberPage: 1 });
-          if (targetInfo?.groupId) {
-            try { await api.addUserToGroup(next.member.id, targetInfo.groupId); }
-            catch {
-              const result = await api.inviteUserToGroups(next.member.id, targetInfo.groupId);
-              const gr = result?.grid_message_map?.[targetInfo.groupId];
-              if (gr?.error_code && gr.error_code !== 0) throw new Error(`Invite error: ${gr.error_code}`);
-            }
-            progress.groupPullDaily++;
-            log(state.accountId, `✅ PULL [${progress.groupPullDaily}/${config.limits.groupPullsPerDay}] → ${next.member.name}`);
-          }
-        } catch (e: any) {
-          log(state.accountId, `❌ PULL ${next.member.name}: ${e.message}`);
+      const targetInfo = await api.getGroupLinkInfo({ link: config.targetGroupLink, memberPage: 1 });
+      if (targetInfo?.groupId) {
+        try { await api.addUserToGroup(member.id, targetInfo.groupId); }
+        catch {
+          const result = await api.inviteUserToGroups(member.id, targetInfo.groupId);
+          const gr = result?.grid_message_map?.[targetInfo.groupId];
+          if (gr?.error_code && gr.error_code !== 0) throw new Error(`Invite error: ${gr.error_code}`);
         }
-        markDone(progress, 'groupPulled', next.groupLink, next.member.id);
-        didSomething = true;
+        progress.groupPullDaily++;
+        log(state.accountId, `✅ PULL [${progress.groupPullDaily}] → ${member.name}`);
       }
     } catch (e: any) {
-      log(state.accountId, `❌ PULL crash: ${e.message}`);
+      log(state.accountId, `❌ PULL ${member.name}: ${e.message}`);
     }
+    markDone(progress, 'groupPulled', groupLink, member.id);
   }
 
   // Save progress
-  if (didSomething) saveProgress(progress);
+  saveProgress(progress);
 
-  // Schedule next — 1 timer duy nhất
+  // Schedule next person
   if (state.running) {
-    const allDone = progress.friendRequestDaily >= config.limits.friendRequestsPerDay
-      && progress.imageSendDaily >= config.limits.imageSendsPerDay
-      && progress.groupPullDaily >= config.limits.groupPullsPerDay;
-
-    if (allDone) {
-      log(state.accountId, `⏸️ Đạt limit hôm nay: FR ${progress.friendRequestDaily}, IMG ${progress.imageSendDaily}, PULL ${progress.groupPullDaily}`);
-      // Check lại sau 30 phút (có thể sang ngày mới)
-      state.timer = setTimeout(() => doWork(api, state, config), 30 * 60 * 1000);
-    } else {
-      const delay = randomDelay(config.delays.imageSendMin, config.delays.imageSendMax);
-      log(state.accountId, `⏰ Next in ${Math.round(delay / 60000)}min`);
-      state.timer = setTimeout(() => doWork(api, state, config), delay);
-    }
+    const delay = randomDelay(config.delays.imageSendMin, config.delays.imageSendMax);
+    log(state.accountId, `⏰ Người tiếp theo in ${Math.round(delay / 60000)}min`);
+    state.timer = setTimeout(() => doWork(api, state, config), delay);
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
 }
 
 // ═══════════════════════════════════════════════════
