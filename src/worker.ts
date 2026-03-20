@@ -80,26 +80,12 @@ function progressPath(accountId: string): string {
 function restoreProgress(accountId: string): void {
   const targetPath = progressPath(accountId);
   const bundledPath = path.join(BUNDLED_PROGRESS_DIR, `${accountId}.json`);
-  const diskExists = fs.existsSync(targetPath);
-  const bundledExists = fs.existsSync(bundledPath);
 
-  if (diskExists && bundledExists) {
-    try {
-      const diskData: AccountProgress = JSON.parse(fs.readFileSync(targetPath, 'utf-8'));
-      const bundledData: AccountProgress = JSON.parse(fs.readFileSync(bundledPath, 'utf-8'));
-      const diskTotal = Object.values(diskData.imageSent || {}).reduce((s, arr) => s + arr.length, 0);
-      const bundledTotal = Object.values(bundledData.imageSent || {}).reduce((s, arr) => s + arr.length, 0);
-      if (bundledTotal > diskTotal) {
-        fs.copyFileSync(bundledPath, targetPath);
-        log(accountId, `📦 Progress: bundled (${bundledTotal}) > disk (${diskTotal}) → dùng bundled`);
-      } else {
-        log(accountId, `📂 Progress: disk (${diskTotal}) >= bundled (${bundledTotal}) → giữ disk`);
-      }
-    } catch { /* keep disk */ }
-  } else if (!diskExists && bundledExists) {
+  // Disk luôn được ưu tiên — chỉ dùng bundled khi disk chưa có
+  if (!fs.existsSync(targetPath) && fs.existsSync(bundledPath)) {
     ensureProgressDir();
     fs.copyFileSync(bundledPath, targetPath);
-    log(accountId, `📦 Progress: restored từ bundled`);
+    log(accountId, `📦 Progress: restored từ bundled (disk chưa có)`);
   }
 }
 
@@ -270,7 +256,7 @@ async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<
   const { member, groupLink } = next;
   log(state.accountId, `👤 Xử lý: ${member.name} (${member.id})`);
 
-  // 1. Gửi hình mời (ưu tiên chính)
+  // Gửi hình mời — action duy nhất
   const imagePath = path.resolve('./data', config.inviteImagePath);
   if (fs.existsSync(imagePath)) {
     try {
@@ -285,44 +271,10 @@ async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<
     } catch (e: any) {
       log(state.accountId, `❌ IMG ${member.name}: ${e.message}`);
     }
-    markDone(progress, 'imageSent', groupLink, member.id);
-    await sleep(2000 + Math.random() * 3000);
   }
 
-  // 2. Friend Request (phụ, không bắt buộc)
-  if (progress.friendRequestDaily < config.limits.friendRequestsPerDay) {
-    try {
-      await api.sendFriendRequest(config.friendRequestMessage, member.id);
-      progress.friendRequestDaily++;
-      log(state.accountId, `✅ FR [${progress.friendRequestDaily}] → ${member.name}`);
-    } catch (e: any) {
-      if ([225, 214, 311, -201].includes(e.code)) {
-        progress.friendRequestDaily++;
-      }
-      log(state.accountId, `⚠️ FR ${member.name}: ${e.message} (${e.code || ''})`);
-    }
-    markDone(progress, 'friendRequested', groupLink, member.id);
-  }
-
-  // 3. Kéo vào group đích
-  if (config.targetGroupLink && progress.groupPullDaily < config.limits.groupPullsPerDay) {
-    try {
-      const targetInfo = await api.getGroupLinkInfo({ link: config.targetGroupLink, memberPage: 1 });
-      if (targetInfo?.groupId) {
-        try { await api.addUserToGroup(member.id, targetInfo.groupId); }
-        catch {
-          const result = await api.inviteUserToGroups(member.id, targetInfo.groupId);
-          const gr = result?.grid_message_map?.[targetInfo.groupId];
-          if (gr?.error_code && gr.error_code !== 0) throw new Error(`Invite error: ${gr.error_code}`);
-        }
-        progress.groupPullDaily++;
-        log(state.accountId, `✅ PULL [${progress.groupPullDaily}] → ${member.name}`);
-      }
-    } catch (e: any) {
-      log(state.accountId, `❌ PULL ${member.name}: ${e.message}`);
-    }
-    markDone(progress, 'groupPulled', groupLink, member.id);
-  }
+  // Đánh dấu đã xử lý (dù thành công hay lỗi — không gửi lại)
+  markDone(progress, 'imageSent', groupLink, member.id);
 
   // Save progress
   saveProgress(progress);
