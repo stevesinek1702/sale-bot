@@ -13,10 +13,44 @@ import { accounts, exportAllCredentials, getAllStoredAccounts, initRestore } fro
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
 import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress, testSendImages } from './worker.js';
 import { registerListeners } from './listener.js';
+import { pushFilesToGitHub } from './git-sync.js';
 
 /** Check account có source groups không (riêng hoặc chung) */
 function hasGroups(accountId: string, config: BotConfig): boolean {
   return (config.accountSourceGroups?.[accountId]?.length || config.sourceGroupLinks.length) > 0;
+}
+
+/** Push config + credentials lên GitHub để persist qua deploy */
+async function syncToGitHub(reason: string): Promise<void> {
+  try {
+    const files: Array<{ path: string; content: string }> = [];
+
+    // Config
+    const configPath = './data/config.json';
+    if (fs.existsSync(configPath)) {
+      files.push({ path: 'data/config.json', content: fs.readFileSync(configPath, 'utf-8') });
+    }
+
+    // Credentials
+    const credsPath = './src/credentials.json';
+    if (fs.existsSync(credsPath)) {
+      files.push({ path: 'src/credentials.json', content: fs.readFileSync(credsPath, 'utf-8') });
+    }
+
+    // Accounts
+    const accountsDir = './src/accounts';
+    if (fs.existsSync(accountsDir)) {
+      for (const f of fs.readdirSync(accountsDir).filter(f => f.endsWith('.json'))) {
+        files.push({ path: `src/accounts/${f}`, content: fs.readFileSync(`${accountsDir}/${f}`, 'utf-8') });
+      }
+    }
+
+    if (files.length > 0) {
+      await pushFilesToGitHub(files, `bot: ${reason}`);
+    }
+  } catch (e: any) {
+    console.log(`⚠️ syncToGitHub failed: ${e.message}`);
+  }
 }
 
 // Track login status cho QR login
@@ -101,6 +135,7 @@ app.post('/api/accounts/add', async (c) => {
           const stored = getAllStoredAccounts();
           fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
           console.log('💾 Credentials đã lưu vào src/credentials.json');
+          syncToGitHub(`add account ${result.account.name}`);
         } catch (e: any) {
           console.log('⚠️ Không lưu được credentials file:', e.message);
         }
@@ -234,6 +269,7 @@ app.put('/api/accounts/:id/groups', async (c) => {
   if (!config.accountSourceGroups) config.accountSourceGroups = {};
   config.accountSourceGroups[id] = groups;
   saveConfig(config);
+  syncToGitHub(`update groups for ${id}`);
   
   // Restart worker cho account này với groups mới
   stopWorker(id);
@@ -319,6 +355,7 @@ app.put('/api/config', async (c) => {
   const body = await c.req.json();
   config = { ...config, ...(body as Partial<BotConfig>) };
   saveConfig(config);
+  syncToGitHub('update config');
 
   // Restart workers với config mới
   stopAllWorkers();
