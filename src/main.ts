@@ -806,7 +806,8 @@ async function api(path,opt){const r=await fetch(U+path,opt);return r.json()}
 
 // ═══ LOAD ALL ═══
 async function loadAll(){
-  await Promise.all([loadAccounts(),loadConfig(),loadImg()]);
+  await loadConfig();
+  await Promise.all([loadAccounts(),loadImg()]);
 }
 
 // ═══ ACCOUNTS ═══
