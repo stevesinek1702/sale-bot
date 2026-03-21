@@ -9,9 +9,6 @@ RUN bun install --production
 COPY src/ src/
 COPY tsconfig.json ./
 
-# Copy dashboard HTML (separate file to avoid encoding issues)
-COPY src/dashboard.html src/dashboard.html
-
 # Create data directories
 RUN mkdir -p data/accounts data/images data/progress
 
