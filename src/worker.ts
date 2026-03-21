@@ -177,6 +177,12 @@ async function findNextPerson(
   const progress = state.progress;
   const groups = getSourceGroups(state.accountId, config);
 
+  // Build set TẤT CẢ userId đã gửi hình (cross-group) — 1 người chỉ nhận 1 hình
+  const allSentIds = new Set<string>();
+  for (const ids of Object.values(progress.imageSent)) {
+    for (const id of ids) allSentIds.add(id);
+  }
+
   for (const groupLink of groups) {
     let members: GroupMember[];
     try {
@@ -186,23 +192,21 @@ async function findNextPerson(
       continue;
     }
 
-    // Dùng imageSent làm master list — chỉ check per-account, không cần sharedSent
-    const doneIds = new Set(progress.imageSent[groupLink] || []);
-
     for (const m of members) {
-      if (!doneIds.has(m.id)) {
+      if (!allSentIds.has(m.id)) {
         return { member: m, groupLink };
       }
     }
 
-    // Group này hết người → log và tiếp tục group tiếp theo
+    // Group này hết người mới → tiếp tục group tiếp theo
     if (members.length > 0) {
-      log(state.accountId, `✅ Đã gửi hết ${doneIds.size}/${members.length} member trong group ${groupLink.split('/').pop()}`);
+      const doneInGroup = (progress.imageSent[groupLink] || []).length;
+      log(state.accountId, `✅ Đã gửi hết ${doneInGroup}/${members.length} member trong group ${groupLink.split('/').pop()}`);
     }
   }
 
   // Tất cả groups đều hết → reset tất cả và bắt đầu vòng mới
-  log(state.accountId, `🔄 Hết member trong TẤT CẢ ${groups.length} groups → reset vòng mới`);
+  log(state.accountId, `🔄 Hết member trong TẤT CẢ ${groups.length} groups (đã gửi ${allSentIds.size} người) → reset vòng mới`);
   for (const groupLink of groups) {
     progress.imageSent[groupLink] = [];
     progress.friendRequested[groupLink] = [];
