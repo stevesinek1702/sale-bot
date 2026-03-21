@@ -5,9 +5,12 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 RUN bun install --production
 
-# Copy source (v9)
+# Copy source (v10)
 COPY src/ src/
 COPY tsconfig.json ./
+
+# Copy dashboard HTML (separate file to avoid encoding issues)
+COPY src/dashboard.html src/dashboard.html
 
 # Create data directories
 RUN mkdir -p data/accounts data/images data/progress
@@ -17,6 +20,9 @@ COPY src/accounts/ data/accounts/
 
 # Copy invite image
 COPY data/images/invite.jpg data/images/invite.jpg
+
+# Copy config nếu có (persist groups/settings qua deploy)
+COPY data/config.json data/config.json
 
 # Copy progress (chỉ dùng làm fallback, persistent disk sẽ override)
 # KHÔNG copy vào data/progress/ vì persistent disk mount sẽ quản lý

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sale Bot Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh;padding:16px}
+.wrap{max-width:800px;margin:0 auto}
+.hdr{text-align:center;padding:24px 0 16px}
+.hdr h1{font-size:24px;color:#333}
+.hdr p{color:#888;font-size:14px;margin-top:4px}
+.card{background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.card h2{font-size:16px;color:#444;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.row{display:flex;gap:10px;margin-bottom:10px}
+.row input,.row select{flex:1;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;outline:none}
+.row input:focus{border-color:#667eea}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn:active{transform:scale(.97)}
+.btn-p{background:#667eea;color:#fff}.btn-p:hover{background:#5a6fd6}
+.btn-d{background:#e74c3c;color:#fff;font-size:12px;padding:6px 12px}.btn-d:hover{background:#c0392b}
+.btn-s{background:#27ae60;color:#fff;font-size:12px;padding:6px 12px}.btn-s:hover{background:#219a52}
+.btn-w{background:#f39c12;color:#fff;font-size:12px;padding:6px 12px}
+.btn-g{background:#95a5a6;color:#fff;font-size:12px;padding:6px 12px}
+.tag{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.tag-on{background:#d4edda;color:#155724}
+.tag-off{background:#f8d7da;color:#721c24}
+.tag-run{background:#cce5ff;color:#004085}
+.acc{background:#f8f9fa;border-radius:10px;padding:14px;margin-bottom:10px}
+.acc:last-child{margin-bottom:0}
+.acc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.acc-name{font-weight:600;font-size:15px;color:#333}
+.acc-id{font-size:11px;color:#999;margin-top:2px}
+.acc-stats{font-size:12px;color:#666;margin-top:6px}
+.acc-stats span{margin-right:12px}
+.grp-row{display:flex;gap:6px;margin-top:8px;align-items:flex-start}
+.grp-list{margin-top:6px}
+.grp-item{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px;color:#555}
+.grp-item .x{color:#e74c3c;cursor:pointer;font-weight:bold;padding:0 4px}
+.msg{padding:12px;border-radius:8px;margin-top:10px;font-size:13px;line-height:1.5}
+.msg-ok{background:#d4edda;color:#155724}
+.msg-err{background:#f8d7da;color:#721c24}
+.msg-wait{background:#fff3cd;color:#856404}
+.img-prev{margin-top:10px;text-align:center}
+.img-prev img{max-width:100%;max-height:250px;border-radius:10px}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hdr"><h1>Sale Bot Dashboard</h1><p>Zalo Auto Bot Manager</p></div>
+
+<div class="card">
+<h2>+ Add Zalo Account</h2>
+<div class="row">
+<input id="newLabel" placeholder="Account name (e.g. Tu Nhi)" value="">
+<button class="btn btn-p" onclick="addAcc()">Create QR</button>
+</div>
+<div id="addSt"></div>
+</div>
+
+<div class="card">
+<h2>Accounts &amp; Bots</h2>
+<div id="accList"><div class="msg msg-wait">Loading...</div></div>
+</div>
+
+<div class="card">
+<h2>Invite Image</h2>
+<div class="row">
+<input type="file" id="imgFile" accept="image/*" style="padding:8px">
+<button class="btn btn-p" onclick="uploadImg()">Upload</button>
+</div>
+<div id="imgSt"></div>
+<div class="img-prev" id="imgPrev"></div>
+</div>
+
+<div class="card">
+<h2>Config</h2>
+<div style="font-size:13px;color:#666" id="cfgInfo">Loading...</div>
+</div>
+
+<div class="card">
+<h2>Save to GitHub</h2>
+<p style="font-size:13px;color:#666;margin-bottom:12px">After adding accounts or groups, click below to save to GitHub and persist across deploys.</p>
+<button class="btn btn-p" onclick="syncGitHub()">Save to GitHub</button>
+<div id="syncMsg"></div>
+</div>
+</div>
+
+<script>
+var U=location.origin;
+var CFG={};
+
+function api(path,opt){return fetch(U+path,opt||{}).then(function(r){return r.json()})}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function setMsg(id,cls,txt){var el=document.getElementById(id);if(el){el.className='msg '+cls;el.innerHTML=txt}}
+
+function loadAll(){
+  loadConfig();
+  loadAccounts();
+  loadImg();
+}
+
+function loadConfig(){
+  api('/api/config').then(function(d){
+    CFG=d;
+    var el=document.getElementById('cfgInfo');
+    if(!el)return;
+    var lim=d.limits||{};
+    var ah=d.activeHours||{};
+    el.innerHTML='Target group: '+esc(d.targetGroupLink||'(not set)')+'<br>'+
+      'Daily limit: IMG '+(lim.imageSendsPerDay||0)+' | FR '+(lim.friendRequestsPerDay||0)+'<br>'+
+      'Active hours: '+(ah.start||0)+'h - '+(ah.end||0)+'h (VN time)';
+  }).catch(function(e){
+    var el=document.getElementById('cfgInfo');
+    if(el)el.innerHTML='Error: '+e.message;
+  });
+}
+
+function loadAccounts(){
+  var d=document.getElementById('accList');
+  Promise.all([
+    api('/api/accounts'),
+    api('/api/workers'),
+    api('/api/progress').catch(function(){return{}})
+  ]).then(function(res){
+    var accs=(res[0].accounts)||[];
+    var workers=(res[1].workers)||[];
+    var prog=res[2]||{};
+    if(!accs.length){d.innerHTML='<div class="msg msg-wait">No accounts. Click "Create QR" to add.</div>';return}
+    var html='';
+    for(var i=0;i<accs.length;i++){
+      var a=accs[i];
+      var w=null;
+      for(var j=0;j<workers.length;j++){if(workers[j].accountId===a.id){w=workers[j];break}}
+      var p=prog[a.id]||null;
+      var groups=(CFG.accountSourceGroups&&CFG.accountSourceGroups[a.id])||[];
+      var imgTotal=0;
+      if(p&&p.imageSent){var vals=Object.values(p.imageSent);for(var k=0;k<vals.length;k++)imgTotal+=vals[k].length}
+      var grpHtml='';
+      for(var gi=0;gi<groups.length;gi++){
+        grpHtml+='<div class="grp-item"><span>'+esc(groups[gi])+'</span><span class="x" data-acc="'+a.id+'" data-idx="'+gi+'" onclick="rmGrp(this)">X</span></div>';
+      }
+      if(!groups.length)grpHtml='<div style="font-size:12px;color:#999;padding:4px 0">No groups. Add links below.</div>';
+      html+='<div class="acc" data-id="'+a.id+'">'
+        +'<div class="acc-top">'
+          +'<div><div class="acc-name">'+esc(a.label||a.name||a.id)+'</div>'
+          +'<div class="acc-id">ID: '+a.id+'</div></div>'
+          +'<div>'
+            +'<span class="tag '+(a.online?'tag-on':'tag-off')+'">'+(a.online?'Online':'Offline')+'</span> '
+            +(w?'<span class="tag tag-run">Running</span>':'')
+          +'</div>'
+        +'</div>'
+        +(w?'<div class="acc-stats"><span>Today: FR '+w.friendRequestDaily+' | IMG '+w.imageSendDaily+' | Pull '+w.groupPullDaily+'</span><br><span>Total: FR '+(p?Object.values(p.friendRequested||{}).reduce(function(s,arr){return s+arr.length},0):0)+' | IMG '+imgTotal+'</span></div>':'')
+        +'<div class="grp-list">'+grpHtml+'</div>'
+        +'<div class="grp-row">'
+          +'<textarea id="gi_'+a.id+'" rows="3" placeholder="Paste group links, one per line" style="flex:1;padding:8px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit"></textarea>'
+          +'<button class="btn btn-s" data-acc="'+a.id+'" onclick="addGrp(this)">+ Group</button>'
+        +'</div>'
+        +'<div class="actions">'
+          +(!a.online?'<button class="btn btn-w" data-acc="'+a.id+'" onclick="loginAcc(this)">Login</button>':'')
+          +'<button class="btn btn-g" data-acc="'+a.id+'" onclick="restartW(this)">Restart</button>'
+          +'<button class="btn btn-d" data-acc="'+a.id+'" onclick="delAcc(this)">Delete</button>'
+        +'</div>'
+        +'<div class="acc-msg"></div>'
+      +'</div>';
+    }
+    d.innerHTML=html;
+  }).catch(function(e){d.innerHTML='<div class="msg msg-err">Error: '+e.message+'</div>'});
+}
+
+function getAccId(el){var box=el.closest('.acc');return box?box.getAttribute('data-id'):null}
+function setAccMsg(el,cls,txt){var box=el.closest('.acc');if(!box)return;var m=box.querySelector('.acc-msg');if(m){m.className='msg '+cls;m.innerHTML=txt}}
+
+function addAcc(){
+  var lb=document.getElementById('newLabel').value||('Account '+(Date.now()%1000));
+  setMsg('addSt','msg-wait','Creating QR...');
+  api('/api/accounts/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:lb})}).then(function(j){
+    if(j.qrUrl){
+      var el=document.getElementById('addSt');
+      el.className='msg msg-ok';
+      el.innerHTML='QR created! <a href="'+U+'/api/accounts/qr-page/'+j.qrId+'" target="_blank" style="color:#155724;font-weight:bold">Open QR page to scan</a><br><small>After scanning, click below</small><br><button class="btn btn-s" style="margin-top:8px" id="chkBtn">Done scanning</button>';
+      document.getElementById('chkBtn').onclick=function(){checkLogin(j.qrId)};
+    }else{setMsg('addSt','msg-err','Error: '+(j.error||'Unknown'))}
+  }).catch(function(e){setMsg('addSt','msg-err','Error: '+e.message)});
+}
+
+function checkLogin(qrId){
+  setMsg('addSt','msg-wait','Checking...');
+  api('/api/accounts/login-status/'+qrId).then(function(j){
+    if(j.status==='success'){
+      setMsg('addSt','msg-ok','Login OK! '+esc((j.account&&j.account.name)||''));
+      loadAll();
+    }else if(j.status==='waiting_scan'){
+      var el=document.getElementById('addSt');
+      el.className='msg msg-wait';
+      el.innerHTML='Not scanned yet. <button class="btn btn-s" style="margin-top:8px" id="chkBtn2">Check again</button>';
+      document.getElementById('chkBtn2').onclick=function(){checkLogin(qrId)};
+    }else{setMsg('addSt','msg-err','Error: '+(j.error||j.status))}
+  }).catch(function(e){setMsg('addSt','msg-err','Error: '+e.message)});
+}
+
+function addGrp(btn){
+  var accId=btn.getAttribute('data-acc');
+  var inp=document.getElementById('gi_'+accId);
+  var raw=inp.value.trim();
+  if(!raw){alert('Enter Zalo group links');return}
+  var newLinks=raw.split('\n').map(function(l){return l.trim()}).filter(function(l){return l.indexOf('zalo.me/g/')>=0});
+  if(!newLinks.length){alert('No valid Zalo links found');return}
+  var groups=(CFG.accountSourceGroups&&CFG.accountSourceGroups[accId])?CFG.accountSourceGroups[accId].slice():[];
+  var added=0;
+  for(var i=0;i<newLinks.length;i++){if(groups.indexOf(newLinks[i])<0){groups.push(newLinks[i]);added++}}
+  if(!added){alert('All links already exist');return}
+  api('/api/accounts/'+accId+'/groups',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups:groups})}).then(function(){
+    if(!CFG.accountSourceGroups)CFG.accountSourceGroups={};
+    CFG.accountSourceGroups[accId]=groups;
+    inp.value='';
+    loadAccounts();
+  }).catch(function(e){alert('Error: '+e.message)});
+}
+
+function rmGrp(btn){
+  var accId=btn.getAttribute('data-acc');
+  var idx=parseInt(btn.getAttribute('data-idx'));
+  var groups=(CFG.accountSourceGroups&&CFG.accountSourceGroups[accId])?CFG.accountSourceGroups[accId].slice():[];
+  groups.splice(idx,1);
+  api('/api/accounts/'+accId+'/groups',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups:groups})}).then(function(){
+    if(!CFG.accountSourceGroups)CFG.accountSourceGroups={};
+    CFG.accountSourceGroups[accId]=groups;
+    loadAccounts();
+  }).catch(function(e){alert('Error: '+e.message)});
+}
+
+function loginAcc(btn){
+  var id=getAccId(btn);
+  setAccMsg(btn,'msg-wait','Logging in...');
+  api('/api/accounts/'+id+'/login',{method:'POST'}).then(function(j){
+    setAccMsg(btn,j.success?'msg-ok':'msg-err',j.success?'Login OK':'Error: '+(j.error||'Failed'));
+    if(j.success)setTimeout(loadAccounts,1000);
+  }).catch(function(e){setAccMsg(btn,'msg-err','Error: '+e.message)});
+}
+
+function restartW(btn){
+  var id=getAccId(btn);
+  setAccMsg(btn,'msg-wait','Restarting...');
+  api('/api/accounts/'+id+'/login',{method:'POST'}).then(function(){
+    setAccMsg(btn,'msg-ok','Restarted');
+    setTimeout(loadAccounts,1000);
+  }).catch(function(e){setAccMsg(btn,'msg-err','Error: '+e.message)});
+}
+
+function delAcc(btn){
+  var id=getAccId(btn);
+  if(!confirm('Delete this account?'))return;
+  api('/api/accounts/'+id,{method:'DELETE'}).then(function(){loadAll()}).catch(function(e){alert('Error: '+e.message)});
+}
+
+function uploadImg(){
+  var f=document.getElementById('imgFile').files[0];
+  if(!f){alert('Select an image first');return}
+  setMsg('imgSt','msg-wait','Uploading...');
+  var fd=new FormData();fd.append('image',f);
+  api('/api/upload-image',{method:'POST',body:fd}).then(function(j){
+    if(j.success){setMsg('imgSt','msg-ok',j.message);loadImg()}
+    else{setMsg('imgSt','msg-err','Error: '+j.error)}
+  }).catch(function(e){setMsg('imgSt','msg-err','Error: '+e.message)});
+}
+
+function loadImg(){
+  var el=document.getElementById('imgPrev');
+  var img=new Image();
+  img.style.maxWidth='100%';img.style.maxHeight='250px';img.style.borderRadius='10px';
+  img.src=U+'/api/invite-image?t='+Date.now();
+  img.onerror=function(){el.innerHTML='<span style="color:#999;font-size:13px">No image yet</span>'};
+  el.innerHTML='';el.appendChild(img);
+}
+
+function syncGitHub(){
+  setMsg('syncMsg','msg-wait','Saving to GitHub...');
+  api('/api/sync-github',{method:'POST'}).then(function(j){
+    if(j.success){setMsg('syncMsg','msg-ok','Saved to GitHub!')}
+    else{setMsg('syncMsg','msg-err','Error: '+(j.error||'Unknown'))}
+  }).catch(function(e){setMsg('syncMsg','msg-err','Error: '+e.message)});
+}
+
+loadAll();
+setInterval(loadAccounts,30000);
+</script>
+</body>
+</html>

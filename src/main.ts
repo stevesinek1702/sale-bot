@@ -75,9 +75,10 @@ app.use('*', async (c, next) => {
 });
 app.options('*', (c) => new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } }));
 
-// Dashboard HTML
+// Dashboard HTML — served from separate file to avoid encoding corruption
 app.get('/dashboard', (c) => {
-  return c.html(getDashboardHtml());
+  const html = fs.readFileSync('./src/dashboard.html', 'utf-8');
+  return c.html(html);
 });
 
 // Health check
@@ -135,7 +136,6 @@ app.post('/api/accounts/add', async (c) => {
           const stored = getAllStoredAccounts();
           fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
           console.log('💾 Credentials đã lưu vào src/credentials.json');
-          syncToGitHub(`add account ${result.account.name}`);
         } catch (e: any) {
           console.log('⚠️ Không lưu được credentials file:', e.message);
         }
@@ -269,7 +269,6 @@ app.put('/api/accounts/:id/groups', async (c) => {
   if (!config.accountSourceGroups) config.accountSourceGroups = {};
   config.accountSourceGroups[id] = groups;
   saveConfig(config);
-  syncToGitHub(`update groups for ${id}`);
   
   // Restart worker cho account này với groups mới
   stopWorker(id);
@@ -355,7 +354,6 @@ app.put('/api/config', async (c) => {
   const body = await c.req.json();
   config = { ...config, ...(body as Partial<BotConfig>) };
   saveConfig(config);
-  syncToGitHub('update config');
 
   // Restart workers với config mới
   stopAllWorkers();
@@ -367,6 +365,16 @@ app.put('/api/config', async (c) => {
 // ─── Workers ───
 
 app.get('/api/workers', (c) => c.json({ workers: getWorkersStatus() }));
+
+// Manual sync to GitHub
+app.post('/api/sync-github', async (c) => {
+  try {
+    await syncToGitHub('manual sync from dashboard');
+    return c.json({ success: true, message: 'Đã lưu lên GitHub thành công' });
+  } catch (e: any) {
+    return c.json({ success: false, error: e.message }, 500);
+  }
+});
 
 // Debug: test restore credentials manually
 app.get('/api/debug/test-restore', (c) => {
@@ -755,266 +763,3 @@ main().catch(err => {
   process.exit(1);
 });
 
-function getDashboardHtml(): string {
-  return `<!DOCTYPE html>
-<html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sale Bot BĐS</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh;padding:16px}
-.wrap{max-width:800px;margin:0 auto}
-.hdr{text-align:center;padding:24px 0 16px}
-.hdr h1{font-size:24px;color:#333}
-.hdr p{color:#888;font-size:14px;margin-top:4px}
-.card{background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-.card h2{font-size:16px;color:#444;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.row{display:flex;gap:10px;margin-bottom:10px}
-.row input,.row select{flex:1;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:14px;outline:none}
-.row input:focus{border-color:#667eea}
-.btn{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
-.btn:active{transform:scale(.97)}
-.btn-p{background:#667eea;color:#fff}.btn-p:hover{background:#5a6fd6}
-.btn-d{background:#e74c3c;color:#fff;font-size:12px;padding:6px 12px}.btn-d:hover{background:#c0392b}
-.btn-s{background:#27ae60;color:#fff;font-size:12px;padding:6px 12px}.btn-s:hover{background:#219a52}
-.btn-w{background:#f39c12;color:#fff;font-size:12px;padding:6px 12px}
-.btn-g{background:#95a5a6;color:#fff;font-size:12px;padding:6px 12px}
-.tag{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
-.tag-on{background:#d4edda;color:#155724}
-.tag-off{background:#f8d7da;color:#721c24}
-.tag-run{background:#cce5ff;color:#004085}
-.acc{background:#f8f9fa;border-radius:10px;padding:14px;margin-bottom:10px}
-.acc:last-child{margin-bottom:0}
-.acc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.acc-name{font-weight:600;font-size:15px;color:#333}
-.acc-id{font-size:11px;color:#999;margin-top:2px}
-.acc-stats{font-size:12px;color:#666;margin-top:6px}
-.acc-stats span{margin-right:12px}
-.grp-row{display:flex;gap:6px;margin-top:8px;align-items:center}
-.grp-row input{flex:1;padding:8px 10px;border:1.5px solid #ddd;border-radius:6px;font-size:13px}
-.grp-list{margin-top:6px}
-.grp-item{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px;color:#555}
-.grp-item .x{color:#e74c3c;cursor:pointer;font-weight:bold;padding:0 4px}
-.msg{padding:12px;border-radius:8px;margin-top:10px;font-size:13px;line-height:1.5}
-.msg-ok{background:#d4edda;color:#155724}
-.msg-err{background:#f8d7da;color:#721c24}
-.msg-wait{background:#fff3cd;color:#856404}
-.img-prev{margin-top:10px;text-align:center}
-.img-prev img{max-width:100%;max-height:250px;border-radius:10px}
-.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-</style></head><body>
-<div class="wrap">
-<div class="hdr"><h1>🏠 Sale Bot BĐS</h1><p>Quản lý bot Zalo tự động</p></div>
-
-<div class="card">
-<h2>➕ Thêm tài khoản Zalo</h2>
-<div class="row">
-<input id="newLabel" placeholder="Tên tài khoản (VD: Tú Nhi)" value="">
-<button class="btn btn-p" onclick="addAcc()">Tạo QR</button>
-</div>
-<div id="addSt"></div>
-</div>
-
-<div class="card">
-<h2>📱 Tài khoản & Bot</h2>
-<div id="accList"><div class="msg msg-wait">Đang tải...</div></div>
-</div>
-
-<div class="card">
-<h2>🖼️ Hình mời vào group</h2>
-<div class="row">
-<input type="file" id="imgFile" accept="image/*" style="padding:8px">
-<button class="btn btn-p" onclick="uploadImg()">Upload</button>
-</div>
-<div id="imgSt"></div>
-<div class="img-prev" id="imgPrev"></div>
-</div>
-
-<div class="card">
-<h2>⚙️ Cài đặt chung</h2>
-<div style="font-size:13px;color:#666" id="cfgInfo">Đang tải...</div>
-</div>
-</div>
-
-<script>
-const U=location.origin;
-let CFG={};
-
-async function api(path,opt){const r=await fetch(U+path,opt);return r.json()}
-
-// ═══ LOAD ALL ═══
-async function loadAll(){
-  await loadConfig();
-  await Promise.all([loadAccounts(),loadImg()]);
-}
-
-// ═══ ACCOUNTS ═══
-async function loadAccounts(){
-  const d=document.getElementById('accList');
-  try{
-    const [accR,wR,pR]=await Promise.all([api('/api/accounts'),api('/api/workers'),api('/api/progress')]);
-    const accs=accR.accounts||[];
-    const workers=wR.workers||[];
-    const progress=pR||{};
-    if(!accs.length){d.innerHTML='<div class="msg msg-wait">Chưa có tài khoản. Nhấn "Tạo QR" để thêm.</div>';return}
-    
-    d.innerHTML=accs.map(a=>{
-      const w=workers.find(x=>x.accountId===a.id);
-      const p=progress[a.id];
-      const groups=CFG.accountSourceGroups?.[a.id]||[];
-      const imgTotal=p?Object.values(p.imageSent||{}).reduce((s,arr)=>s+arr.length,0):0;
-      const frTotal=p?Object.values(p.friendRequested||{}).reduce((s,arr)=>s+arr.length,0):0;
-      
-      return '<div class="acc">'+
-        '<div class="acc-top">'+
-          '<div><div class="acc-name">'+esc(a.label||a.name)+'</div>'+
-          '<div class="acc-id">ID: '+a.id+'</div></div>'+
-          '<div>'+
-            '<span class="tag '+(a.online?'tag-on':'tag-off')+'">'+(a.online?'🟢 Online':'🔴 Offline')+'</span> '+
-            (w?'<span class="tag tag-run">▶️ Running</span>':'')+
-          '</div>'+
-        '</div>'+
-        (w?'<div class="acc-stats">'+
-          '<span>📨 Hôm nay: FR '+w.friendRequestDaily+' | IMG '+w.imageSendDaily+' | Pull '+w.groupPullDaily+'</span><br>'+
-          '<span>📊 Tổng: FR '+frTotal+' | IMG '+imgTotal+'</span>'+
-        '</div>':'')+
-        '<div class="grp-list" id="grp_'+a.id+'">'+
-          groups.map((g,i)=>'<div class="grp-item"><span>📌 '+esc(g)+'</span><span class="x" onclick="rmGrp(\\''+a.id+'\\','+i+')">✕</span></div>').join('')+
-          (groups.length===0?'<div style="font-size:12px;color:#999;padding:4px 0">Chưa có group. Thêm link group bên dưới.</div>':'')+
-        '</div>'+
-        '<div class="grp-row">'+
-          '<input id="gi_'+a.id+'" placeholder="https://zalo.me/g/..." onkeydown="if(event.key===\\'Enter\\')addGrp(\\''+a.id+'\\')">'+
-          '<button class="btn btn-s" onclick="addGrp(\\''+a.id+'\\')">+ Group</button>'+
-        '</div>'+
-        '<div class="actions">'+
-          (!a.online?'<button class="btn btn-w" onclick="loginAcc(\\''+a.id+'\\')">🔑 Login</button>':'')+
-          '<button class="btn btn-g" onclick="restartW(\\''+a.id+'\\')">🔄 Restart</button>'+
-          '<button class="btn btn-d" onclick="delAcc(\\''+a.id+'\\')">🗑️ Xóa</button>'+
-        '</div>'+
-        '<div id="st_'+a.id+'"></div>'+
-      '</div>';
-    }).join('');
-  }catch(e){d.innerHTML='<div class="msg msg-err">❌ '+e.message+'</div>'}
-}
-
-// ═══ ADD ACCOUNT ═══
-async function addAcc(){
-  const lb=document.getElementById('newLabel').value||'Account '+(Date.now()%1000);
-  const d=document.getElementById('addSt');
-  d.className='msg msg-wait';d.innerHTML='⏳ Đang tạo QR...';
-  try{
-    const j=await api('/api/accounts/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:lb})});
-    if(j.qrUrl){
-      d.className='msg msg-ok';
-      d.innerHTML='✅ QR đã tạo! <a href="'+U+'/api/accounts/qr-page/'+j.qrId+'" target="_blank" style="color:#155724;font-weight:bold">👉 Mở trang quét QR</a><br><small>Quét xong nhấn nút bên dưới</small><br><button class="btn btn-s" style="margin-top:8px;width:auto" onclick="checkLogin(\\''+j.qrId+'\\')">✅ Đã quét xong</button>';
-    }else throw new Error(j.error||'Lỗi');
-  }catch(e){d.className='msg msg-err';d.innerHTML='❌ '+e.message}
-}
-
-async function checkLogin(qrId){
-  const d=document.getElementById('addSt');
-  d.className='msg msg-wait';d.innerHTML='⏳ Đang kiểm tra...';
-  try{
-    const j=await api('/api/accounts/login-status/'+qrId);
-    if(j.status==='success'){
-      d.className='msg msg-ok';d.innerHTML='✅ Đăng nhập thành công! '+esc(j.account?.name||'');
-      loadAll();
-    }else if(j.status==='waiting_scan'){
-      d.className='msg msg-wait';d.innerHTML='⏳ Chưa quét xong. Thử lại sau vài giây.<br><button class="btn btn-s" style="margin-top:8px;width:auto" onclick="checkLogin(\\''+qrId+'\\')">🔄 Kiểm tra lại</button>';
-    }else{
-      d.className='msg msg-err';d.innerHTML='❌ '+(j.error||j.status);
-    }
-  }catch(e){d.className='msg msg-err';d.innerHTML='❌ '+e.message}
-}
-
-// ═══ GROUPS ═══
-async function addGrp(accId){
-  const inp=document.getElementById('gi_'+accId);
-  const link=inp.value.trim();
-  if(!link||!link.includes('zalo.me')){alert('Nhập link group Zalo hợp lệ');return}
-  const groups=CFG.accountSourceGroups?.[accId]||[];
-  if(groups.includes(link)){alert('Group đã tồn tại');return}
-  groups.push(link);
-  try{
-    await api('/api/accounts/'+accId+'/groups',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups})});
-    CFG.accountSourceGroups=CFG.accountSourceGroups||{};
-    CFG.accountSourceGroups[accId]=groups;
-    inp.value='';
-    loadAccounts();
-  }catch(e){alert('Lỗi: '+e.message)}
-}
-
-async function rmGrp(accId,idx){
-  const groups=(CFG.accountSourceGroups?.[accId]||[]).slice();
-  groups.splice(idx,1);
-  try{
-    await api('/api/accounts/'+accId+'/groups',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups})});
-    CFG.accountSourceGroups[accId]=groups;
-    loadAccounts();
-  }catch(e){alert('Lỗi: '+e.message)}
-}
-
-// ═══ ACCOUNT ACTIONS ═══
-async function loginAcc(id){
-  const d=document.getElementById('st_'+id);
-  d.className='msg msg-wait';d.innerHTML='⏳ Đang login...';
-  try{
-    const j=await api('/api/accounts/'+id+'/login',{method:'POST'});
-    d.className=j.success?'msg msg-ok':'msg msg-err';
-    d.innerHTML=j.success?'✅ Login OK':'❌ '+(j.error||'Lỗi');
-    if(j.success)setTimeout(loadAccounts,1000);
-  }catch(e){d.className='msg msg-err';d.innerHTML='❌ '+e.message}
-}
-
-async function restartW(id){
-  const d=document.getElementById('st_'+id);
-  d.className='msg msg-wait';d.innerHTML='⏳ Đang restart...';
-  try{
-    await api('/api/accounts/'+id+'/login',{method:'POST'});
-    d.className='msg msg-ok';d.innerHTML='✅ Restarted';
-    setTimeout(loadAccounts,1000);
-  }catch(e){d.className='msg msg-err';d.innerHTML='❌ '+e.message}
-}
-
-async function delAcc(id){
-  if(!confirm('Xóa tài khoản này?'))return;
-  try{
-    await api('/api/accounts/'+id,{method:'DELETE'});
-    loadAccounts();
-  }catch(e){alert('Lỗi: '+e.message)}
-}
-
-// ═══ IMAGE ═══
-async function uploadImg(){
-  const f=document.getElementById('imgFile').files[0];
-  if(!f){alert('Chọn hình trước');return}
-  const d=document.getElementById('imgSt');
-  d.className='msg msg-wait';d.innerHTML='⏳ Đang upload...';
-  try{
-    const fd=new FormData();fd.append('image',f);
-    const j=await api('/api/upload-image',{method:'POST',body:fd});
-    if(j.success){d.className='msg msg-ok';d.innerHTML='✅ '+j.message;loadImg()}
-    else throw new Error(j.error);
-  }catch(e){d.className='msg msg-err';d.innerHTML='❌ '+e.message}
-}
-
-function loadImg(){
-  document.getElementById('imgPrev').innerHTML='<img src="'+U+'/api/invite-image?t='+Date.now()+'" onerror="this.parentElement.innerHTML=\\'<span style=color:#999>Chưa có hình</span>\\'">';
-}
-
-// ═══ CONFIG ═══
-async function loadConfig(){
-  try{
-    CFG=await api('/api/config');
-    document.getElementById('cfgInfo').innerHTML=
-      '🎯 Group đích: '+(CFG.targetGroupLink||'(chưa set)')+'<br>'+
-      '📊 Giới hạn/ngày: FR '+CFG.limits?.friendRequestsPerDay+' | IMG '+CFG.limits?.imageSendsPerDay+' | Pull '+CFG.limits?.groupPullsPerDay+'<br>'+
-      '🕐 Giờ hoạt động: '+CFG.activeHours?.start+'h - '+CFG.activeHours?.end+'h (VN)';
-  }catch{}
-}
-
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-
-loadAll();
-setInterval(loadAccounts,30000);
-</script></body></html>`;
-}
