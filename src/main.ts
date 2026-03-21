@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { Hono } from 'hono';
 import { accounts, exportAllCredentials, getAllStoredAccounts, initRestore } from './account.js';
 import { loadConfig, saveConfig, type BotConfig } from './config.js';
-import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress, testSendImages } from './worker.js';
+import { startWorker, stopWorker, stopAllWorkers, getWorkersStatus, exportAllProgress, testSendImages, getAccountStats } from './worker.js';
 import { registerListeners } from './listener.js';
 import { pushFilesToGitHub } from './git-sync.js';
 
@@ -365,6 +365,15 @@ app.put('/api/config', async (c) => {
 // ─── Workers ───
 
 app.get('/api/workers', (c) => c.json({ workers: getWorkersStatus() }));
+
+// Stats per account — daily progress, total all-time, groups exhausted
+app.get('/api/stats', (c) => {
+  const stats: Record<string, any> = {};
+  for (const acc of accounts.list()) {
+    stats[acc.id] = getAccountStats(acc.id, config);
+  }
+  return c.json(stats);
+});
 
 // Manual sync to GitHub
 app.post('/api/sync-github', async (c) => {
@@ -755,6 +764,19 @@ async function main() {
   }, 10 * 60 * 1000); // Mỗi 10 phút
 
   console.log(`🏓 Self-ping enabled (mỗi 10 phút) → ${APP_URL}`);
+
+  // 6. Auto-save progress to GitHub at 23h VN daily
+  setInterval(async () => {
+    const vnHour = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })).getHours();
+    const vnMin = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })).getMinutes();
+    // Run at 23:00-23:09 VN time (check every 10 min so we hit this window once)
+    if (vnHour === 23 && vnMin < 10) {
+      console.log('💾 Auto-save: saving progress to GitHub...');
+      await syncToGitHub('auto-save daily 23h');
+    }
+  }, 10 * 60 * 1000);
+  console.log('💾 Auto-save enabled (daily at 23h VN)');
+
   console.log('👂 Bot đang chạy...');
 }
 

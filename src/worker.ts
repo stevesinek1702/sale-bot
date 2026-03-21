@@ -356,6 +356,51 @@ export function getWorkersStatus(): Array<{
   }));
 }
 
+/** Stats per account: total sent all-time, groups exhausted, daily progress */
+export function getAccountStats(accountId: string, config: BotConfig): {
+  dailySent: number; dailyLimit: number; remaining: number;
+  totalSentAllTime: number; groupsTotal: number; groupsExhausted: number;
+} {
+  const progress = loadProgress(accountId);
+  resetDailyIfNeeded(progress);
+  const groups = getSourceGroups(accountId, config);
+  const limit = config.limits.imageSendsPerDay;
+
+  // Total sent all-time (cross-group unique)
+  const allSentIds = new Set<string>();
+  for (const ids of Object.values(progress.imageSent)) {
+    for (const id of ids) allSentIds.add(id);
+  }
+
+  // Groups exhausted: check cached member count vs sent count
+  let groupsExhausted = 0;
+  const state = workers.get(accountId);
+  for (const groupLink of groups) {
+    const cached = state?.memberCache.get(groupLink);
+    if (cached) {
+      const sentInGroup = new Set(progress.imageSent[groupLink] || []);
+      // Count members not yet sent (considering cross-group dedup)
+      const unsent = cached.members.filter(m => !allSentIds.has(m.id));
+      if (unsent.length === 0) groupsExhausted++;
+    } else {
+      // No cache = not scanned yet, count sent vs known
+      const sentCount = (progress.imageSent[groupLink] || []).length;
+      if (sentCount > 0) {
+        // Has some progress but no cache — can't determine exhaustion
+      }
+    }
+  }
+
+  return {
+    dailySent: progress.imageSendDaily,
+    dailyLimit: limit,
+    remaining: Math.max(0, limit - progress.imageSendDaily),
+    totalSentAllTime: allSentIds.size,
+    groupsTotal: groups.length,
+    groupsExhausted,
+  };
+}
+
 export async function testSendImages(
   api: any, accountId: string, config: BotConfig, count: number = 2,
 ): Promise<{ sent: string[]; errors: string[] }> {

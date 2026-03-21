@@ -32,6 +32,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .acc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .acc-name{font-weight:600;font-size:15px;color:#333}
 .acc-id{font-size:11px;color:#999;margin-top:2px}
+</style>
+<style>
 .acc-stats{font-size:12px;color:#666;margin-top:6px}
 .acc-stats span{margin-right:12px}
 .grp-row{display:flex;gap:6px;margin-top:8px;align-items:flex-start}
@@ -45,6 +47,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .img-prev{margin-top:10px;text-align:center}
 .img-prev img{max-width:100%;max-height:250px;border-radius:10px}
 .actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.progress-bar{background:#e9ecef;border-radius:6px;height:8px;margin-top:6px;overflow:hidden}
+.progress-fill{height:100%;border-radius:6px;transition:width .3s}
+.progress-fill.green{background:#27ae60}
+.progress-fill.yellow{background:#f39c12}
+.progress-fill.red{background:#e74c3c}
+.alert-box{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:12px;color:#856404}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat-item{background:#f8f9fa;border-radius:8px;padding:12px;text-align:center}
+.stat-num{font-size:24px;font-weight:700;color:#333}
+.stat-label{font-size:11px;color:#888;margin-top:4px}
 </style>
 </head>
 <body>
@@ -66,6 +78,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div class="card">
+<h2>Stats</h2>
+<div id="statsBox"><div class="msg msg-wait">Loading...</div></div>
+</div>
+
+<div class="card">
 <h2>Invite Image</h2>
 <div class="row">
 <input type="file" id="imgFile" accept="image/*" style="padding:8px">
@@ -82,7 +99,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="card">
 <h2>Save</h2>
-<p style="font-size:13px;color:#666;margin-bottom:12px">After adding accounts or groups, click below to save and persist across deploys.</p>
+<p style="font-size:13px;color:#666;margin-bottom:12px">Save config + credentials to GitHub. Auto-save runs daily at 23h VN.</p>
 <button class="btn btn-p" onclick="syncGitHub()">Save</button>
 <div id="syncMsg"></div>
 </div>
@@ -91,6 +108,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 var U=location.origin;
 var CFG={};
+var STATS={};
 
 function api(path,opt){return fetch(U+path,opt||{}).then(function(r){return r.json()})}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -100,6 +118,7 @@ function loadAll(){
   loadConfig();
   loadAccounts();
   loadImg();
+  loadStats();
 }
 
 function loadConfig(){
@@ -110,12 +129,38 @@ function loadConfig(){
     var lim=d.limits||{};
     var ah=d.activeHours||{};
     el.innerHTML='Target group: '+esc(d.targetGroupLink||'(not set)')+'<br>'+
-      'Daily limit: IMG '+(lim.imageSendsPerDay||0)+' | FR '+(lim.friendRequestsPerDay||0)+'<br>'+
-      'Active hours: '+(ah.start||0)+'h - '+(ah.end||0)+'h (VN time)';
+      'Daily limit: IMG '+(lim.imageSendsPerDay||0)+'/account<br>'+
+      'Active hours: '+(ah.start||0)+'h - '+(ah.end||0)+'h (VN time)<br>'+
+      'Send delay: '+(d.delays&&d.delays.imageSendMin||1)+'-'+(d.delays&&d.delays.imageSendMax||5)+' min';
   }).catch(function(e){
     var el=document.getElementById('cfgInfo');
     if(el)el.innerHTML='Error: '+e.message;
   });
+}
+
+function loadStats(){
+  api('/api/stats').then(function(d){
+    STATS=d;
+    var el=document.getElementById('statsBox');
+    if(!el)return;
+    var ids=Object.keys(d);
+    if(!ids.length){el.innerHTML='<div style="font-size:13px;color:#999">No data yet</div>';return}
+    var totalSent=0,totalRemaining=0,totalGroups=0,totalExhausted=0;
+    for(var i=0;i<ids.length;i++){
+      var s=d[ids[i]];
+      totalSent+=s.totalSentAllTime||0;
+      totalRemaining+=s.remaining||0;
+      totalGroups+=s.groupsTotal||0;
+      totalExhausted+=s.groupsExhausted||0;
+    }
+    el.innerHTML='<div class="stat-grid">'+
+      '<div class="stat-item"><div class="stat-num">'+totalSent+'</div><div class="stat-label">Total sent (all time)</div></div>'+
+      '<div class="stat-item"><div class="stat-num">'+totalRemaining+'</div><div class="stat-label">Remaining today</div></div>'+
+      '<div class="stat-item"><div class="stat-num">'+totalGroups+'</div><div class="stat-label">Total groups</div></div>'+
+      '<div class="stat-item"><div class="stat-num">'+totalExhausted+'</div><div class="stat-label">Groups exhausted</div></div>'+
+    '</div>'+
+    (totalExhausted>0?'<div class="alert-box">Warning: '+totalExhausted+' group(s) fully sent. Consider adding new groups for more reach.</div>':'');
+  }).catch(function(){});
 }
 
 function loadAccounts(){
@@ -123,11 +168,13 @@ function loadAccounts(){
   Promise.all([
     api('/api/accounts'),
     api('/api/workers'),
-    api('/api/progress').catch(function(){return{}})
+    api('/api/progress').catch(function(){return{}}),
+    api('/api/stats').catch(function(){return{}})
   ]).then(function(res){
     var accs=(res[0].accounts)||[];
     var workers=(res[1].workers)||[];
     var prog=res[2]||{};
+    var stats=res[3]||{};
     if(!accs.length){d.innerHTML='<div class="msg msg-wait">No accounts. Click "Create QR" to add.</div>';return}
     var html='';
     for(var i=0;i<accs.length;i++){
@@ -135,14 +182,25 @@ function loadAccounts(){
       var w=null;
       for(var j=0;j<workers.length;j++){if(workers[j].accountId===a.id){w=workers[j];break}}
       var p=prog[a.id]||null;
+      var st=stats[a.id]||null;
       var groups=(CFG.accountSourceGroups&&CFG.accountSourceGroups[a.id])||[];
-      var imgTotal=0;
-      if(p&&p.imageSent){var vals=Object.values(p.imageSent);for(var k=0;k<vals.length;k++)imgTotal+=vals[k].length}
+
+      // Daily progress bar
+      var dailySent=st?st.dailySent:0;
+      var dailyLimit=st?st.dailyLimit:100;
+      var remaining=st?st.remaining:0;
+      var pct=dailyLimit>0?Math.round(dailySent/dailyLimit*100):0;
+      var barColor=pct<50?'green':pct<80?'yellow':'red';
+      var totalAll=st?st.totalSentAllTime:0;
+      var grpExh=st?st.groupsExhausted:0;
+      var grpTotal=st?st.groupsTotal:0;
+
       var grpHtml='';
       for(var gi=0;gi<groups.length;gi++){
         grpHtml+='<div class="grp-item"><span>'+esc(groups[gi])+'</span><span class="x" data-acc="'+a.id+'" data-idx="'+gi+'" onclick="rmGrp(this)">X</span></div>';
       }
       if(!groups.length)grpHtml='<div style="font-size:12px;color:#999;padding:4px 0">No groups. Add links below.</div>';
+
       html+='<div class="acc" data-id="'+a.id+'">'
         +'<div class="acc-top">'
           +'<div><div class="acc-name">'+esc(a.label||a.name||a.id)+'</div>'
@@ -152,7 +210,17 @@ function loadAccounts(){
             +(w?'<span class="tag tag-run">Running</span>':'')
           +'</div>'
         +'</div>'
-        +(w?'<div class="acc-stats"><span>Today: FR '+w.friendRequestDaily+' | IMG '+w.imageSendDaily+' | Pull '+w.groupPullDaily+'</span><br><span>Total: FR '+(p?Object.values(p.friendRequested||{}).reduce(function(s,arr){return s+arr.length},0):0)+' | IMG '+imgTotal+'</span></div>':'')
+        // Daily progress
+        +'<div class="acc-stats">'
+          +'<span>Today: <b>'+dailySent+'/'+dailyLimit+'</b> sent, <b>'+remaining+'</b> remaining</span>'
+          +'<div class="progress-bar"><div class="progress-fill '+barColor+'" style="width:'+pct+'%"></div></div>'
+        +'</div>'
+        // All-time stats
+        +'<div class="acc-stats" style="margin-top:4px">'
+          +'<span>All-time: '+totalAll+' sent | Groups: '+grpTotal+(grpExh>0?' ('+grpExh+' exhausted)':'')+'</span>'
+        +'</div>'
+        // Exhaustion warning
+        +(grpExh>0&&grpExh>=grpTotal?'<div class="alert-box">All groups exhausted! Add new groups for more reach.</div>':'')
         +'<div class="grp-list">'+grpHtml+'</div>'
         +'<div class="grp-row">'
           +'<textarea id="gi_'+a.id+'" rows="3" placeholder="Paste group links, one per line" style="flex:1;padding:8px;border:1.5px solid #ddd;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit"></textarea>'
@@ -277,15 +345,15 @@ function loadImg(){
 }
 
 function syncGitHub(){
-  setMsg('syncMsg','msg-wait','Saving to GitHub...');
+  setMsg('syncMsg','msg-wait','Saving...');
   api('/api/sync-github',{method:'POST'}).then(function(j){
-    if(j.success){setMsg('syncMsg','msg-ok','Saved to GitHub!')}
+    if(j.success){setMsg('syncMsg','msg-ok','Saved!')}
     else{setMsg('syncMsg','msg-err','Error: '+(j.error||'Unknown'))}
   }).catch(function(e){setMsg('syncMsg','msg-err','Error: '+e.message)});
 }
 
 loadAll();
-setInterval(loadAccounts,30000);
+setInterval(function(){loadAccounts();loadStats()},30000);
 </script>
 </body>
 </html>
