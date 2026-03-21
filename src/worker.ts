@@ -137,9 +137,8 @@ function isActiveHours(config: BotConfig): boolean {
 }
 
 function randomDelay(minMin: number, maxMin: number): number {
-  const isLong = Math.random() < 0.1;
   const base = minMin + Math.random() * (maxMin - minMin);
-  return base * (isLong ? 1.5 + Math.random() : 1) * 60 * 1000;
+  return base * 60 * 1000;
 }
 
 function log(accountId: string, msg: string): void {
