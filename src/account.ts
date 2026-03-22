@@ -175,38 +175,72 @@ export const accounts = {
     }
   },
 
-  async login(accountId: string): Promise<{ success: boolean; api?: any; error?: string }> {
-    if (apiInstances.has(accountId)) return { success: true, api: apiInstances.get(accountId) };
+  async login(accountId: string, force = false): Promise<{ success: boolean; api?: any; error?: string }> {
+    // Skip if already online and not forced
+    if (!force && apiInstances.has(accountId)) {
+      return { success: true, api: apiInstances.get(accountId) };
+    }
     const data = load(accountId);
     if (!data) return { success: false, error: 'Account not found' };
+    // Skip expired accounts unless forced — they need QR re-scan
+    if (!force && data.info.status === 'expired') {
+      console.log(`⏭️ Skip ${data.info.label}: expired (needs QR re-scan)`);
+      return { success: false, error: 'Session expired, needs QR re-scan' };
+    }
     try {
       console.log(`🔑 Logging in: ${data.info.label} (${accountId})...`);
       const zaloInstance = new Zalo({ selfListen: false, logging: false });
       const api = await zaloInstance.login(data.credentials);
       data.info.lastLoginAt = new Date().toISOString();
       data.info.status = 'active';
-      save({ info: data.info, credentials: api.getContext() });
+      const newCreds = api.getContext();
+      save({ info: data.info, credentials: newCreds });
       apiInstances.set(accountId, api);
       console.log(`✅ Logged in: ${data.info.label} (${accountId})`);
       return { success: true, api };
     } catch (e: any) {
       data.info.status = 'expired';
       save(data);
+      apiInstances.delete(accountId);
       return { success: false, error: `Login failed: ${e.message}` };
     }
   },
 
-  async loginAll(): Promise<{ success: number; failed: number; errors: string[] }> {
+  /** Invalidate a cached API instance (called when worker detects session error) */
+  invalidate(accountId: string): void {
+    apiInstances.delete(accountId);
+  },
+
+  async loginAll(): Promise<{ success: number; failed: number; skipped: number; errors: string[] }> {
     const all = this.list();
-    console.log(`📱 loginAll: ${all.length} accounts: ${all.map(a => `${a.label}(${a.id})`).join(', ')}`);
-    let success = 0, failed = 0;
+    console.log(`📱 loginAll: ${all.length} accounts`);
+    let success = 0, failed = 0, skipped = 0;
     const errors: string[] = [];
-    for (const acc of all) {
+    for (let i = 0; i < all.length; i++) {
+      const acc = all[i];
+      // Already online — skip, don't re-login
+      if (apiInstances.has(acc.id)) {
+        console.log(`⏭️ ${acc.label}: already online, skip`);
+        success++;
+        skipped++;
+        continue;
+      }
+      // Expired — skip (needs QR)
+      if (acc.status === 'expired') {
+        console.log(`⏭️ ${acc.label}: expired, skip (needs QR)`);
+        skipped++;
+        continue;
+      }
+      // Delay between logins to avoid Zalo rate-limit
+      if (i > 0) {
+        console.log(`⏳ Waiting 5s before next login...`);
+        await new Promise(r => setTimeout(r, 5000));
+      }
       const result = await this.login(acc.id);
       if (result.success) success++;
       else { failed++; errors.push(`${acc.label}: ${result.error}`); }
     }
-    return { success, failed, errors };
+    return { success, failed, skipped, errors };
   },
 
   getApi(accountId: string): any | null { return apiInstances.get(accountId) || null; },

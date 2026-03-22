@@ -11,6 +11,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { type BotConfig } from './config.js';
 import { scanGroupMembers, type GroupMember } from './scanner.js';
+import { accounts } from './account.js';
 
 // ═══════════════════════════════════════════════════
 // TYPES
@@ -289,7 +290,29 @@ async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<
   }
 
   // Tìm 1 NGƯỜI mới chưa gửi
-  const next = await findNextPerson(api, state, config);
+  let next: { member: GroupMember; groupLink: string } | null = null;
+  try {
+    next = await findNextPerson(api, state, config);
+  } catch (e: any) {
+    // If API error, try re-login once
+    if (e.message?.includes('not logged in') || e.message?.includes('session') || e.message?.includes('expired') || e.message?.includes('ECONNREFUSED')) {
+      log(state.accountId, `🔄 API error, attempting re-login...`);
+      accounts.invalidate(state.accountId);
+      const loginResult = await accounts.login(state.accountId, true);
+      if (loginResult.success && loginResult.api) {
+        api = loginResult.api;
+        // Update the api reference for future calls
+        try { next = await findNextPerson(api, state, config); } catch {}
+      } else {
+        log(state.accountId, `❌ Re-login failed: ${loginResult.error}`);
+        state.timer = setTimeout(() => doWork(api, state, config), 10 * 60 * 1000);
+        return;
+      }
+    } else {
+      log(state.accountId, `❌ findNextPerson error: ${e.message}`);
+    }
+  }
+
   if (!next) {
     log(state.accountId, '⏸️ Hết member trong tất cả groups');
     state.timer = setTimeout(() => doWork(api, state, config), 30 * 60 * 1000);
@@ -314,6 +337,11 @@ async function doWork(api: any, state: WorkerState, config: BotConfig): Promise<
       log(state.accountId, `✅ IMG [${progress.imageSendDaily}/${config.limits.imageSendsPerDay}] [${groupTag}] → ${member.name}`);
     } catch (e: any) {
       log(state.accountId, `❌ IMG ${member.name}: ${e.message}`);
+      // If send fails due to session, try re-login for next cycle
+      if (e.message?.includes('not logged in') || e.message?.includes('session') || e.message?.includes('expired')) {
+        log(state.accountId, `🔄 Session error detected, will re-login next cycle`);
+        accounts.invalidate(state.accountId);
+      }
     }
   }
 

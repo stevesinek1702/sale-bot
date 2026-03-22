@@ -139,13 +139,14 @@ app.post('/api/accounts/add', async (c) => {
         if (hasGroups(result.account.id, config)) {
           startWorker(api, result.account.id, result.account.name, config);
         }
-        // Auto save credentials vào bundled file
+        // Save credentials immediately to GitHub (don't wait 30 min)
         try {
           const stored = getAllStoredAccounts();
           fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
-          console.log('💾 Credentials đã lưu vào src/credentials.json');
+          console.log('💾 Credentials saved to src/credentials.json');
+          syncToGitHub('new QR login: ' + result.account.name).catch(() => {});
         } catch (e: any) {
-          console.log('⚠️ Không lưu được credentials file:', e.message);
+          console.log('⚠️ Cannot save credentials:', e.message);
         }
       }
     } else {
@@ -241,6 +242,14 @@ app.post('/api/login-all', async (c) => {
         startWorker(api, accountId, info.name || info.label, config);
       }
     }
+  }
+  // Save updated credentials to GitHub
+  if (result.success > 0) {
+    try {
+      const stored = getAllStoredAccounts();
+      fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
+      syncToGitHub('login-all credentials update').catch(() => {});
+    } catch {}
   }
   return c.json({ ...result, workers: getWorkersStatus() });
 });
@@ -730,15 +739,23 @@ async function main() {
   console.log(`   GET  /api/workers      - Status workers`);
   console.log('');
 
-  // 2. Restore credentials từ bundled file + Login tất cả accounts
+  // 2. Restore credentials + Login (lazy — skip expired, delay between logins)
   initRestore();
   const accountCount = accounts.count();
   if (accountCount > 0) {
-    console.log(`📱 Tìm thấy ${accountCount} tài khoản, đang login...`);
+    console.log(`📱 Found ${accountCount} accounts, logging in (lazy mode)...`);
     const result = await accounts.loginAll();
-    console.log(`✅ ${result.success} online, ❌ ${result.failed} failed`);
+    console.log(`✅ ${result.success} online, ❌ ${result.failed} failed, ⏭️ ${result.skipped} skipped`);
     if (result.errors.length > 0) {
       result.errors.forEach(e => console.log(`   ⚠️ ${e}`));
+    }
+    // Save updated credentials to GitHub after login
+    if (result.success > 0) {
+      try {
+        const stored = getAllStoredAccounts();
+        fs.writeFileSync('./src/credentials.json', JSON.stringify(stored, null, 2));
+        syncToGitHub('startup login credentials update').catch(() => {});
+      } catch {}
     }
     console.log('');
   } else {
