@@ -154,7 +154,7 @@ function getSourceGroups(accountId: string, config: BotConfig): string[] {
 // SCAN — Cache members per group, refresh mỗi 2 giờ
 // ═══════════════════════════════════════════════════
 
-const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 giờ
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 giờ — quét 1 lần/vòng là đủ
 
 async function getMembers(api: any, state: WorkerState, groupLink: string): Promise<GroupMember[]> {
   const cached = state.memberCache.get(groupLink);
@@ -236,8 +236,8 @@ async function findNextPerson(
     }
   }
 
-  // Tất cả groups đều hết → reset và bắt đầu vòng mới từ đầu
-  log(state.accountId, `🔄 Done all ${groups.length} groups (sent ${allSentIds.size}). Resetting for new round.`);
+  // Hết vòng — tất cả groups đã gửi hết → reset hoàn toàn, bắt đầu vòng mới
+  log(state.accountId, `🔄 Round done! All ${groups.length} groups completed (sent ${allSentIds.size}). Resetting for new round.`);
   for (const groupLink of groups) {
     progress.imageSent[groupLink] = [];
     progress.friendRequested[groupLink] = [];
@@ -247,7 +247,7 @@ async function findNextPerson(
   targetGroupCache.clear();
   saveProgress(progress);
 
-  // Lấy người đầu tiên từ group đầu tiên
+  // Quét lại và lấy người đầu tiên
   const newTargetIds = await getTargetGroupMemberIds(api, config);
   for (const groupLink of groups) {
     try {
