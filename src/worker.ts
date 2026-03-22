@@ -168,7 +168,34 @@ async function getMembers(api: any, state: WorkerState, groupLink: string): Prom
 }
 
 // ═══════════════════════════════════════════════════
-// FIND NEXT — Tìm người chưa xử lý (dựa trên imageSent làm master)
+// TARGET GROUP — Cache member IDs của group đích, refresh mỗi 2 giờ
+// Người đã ở group đích rồi thì không cần gửi hình mời
+// ═══════════════════════════════════════════════════
+
+const targetGroupCache = new Map<string, { memberIds: Set<string>; scannedAt: number }>();
+
+async function getTargetGroupMemberIds(api: any, config: BotConfig): Promise<Set<string>> {
+  if (!config.targetGroupLink) return new Set();
+
+  const cached = targetGroupCache.get(config.targetGroupLink);
+  if (cached && Date.now() - cached.scannedAt < CACHE_TTL) {
+    return cached.memberIds;
+  }
+
+  try {
+    const result = await scanGroupMembers(api, config.targetGroupLink);
+    const ids = new Set(result.members.map(m => m.id));
+    targetGroupCache.set(config.targetGroupLink, { memberIds: ids, scannedAt: Date.now() });
+    console.log(`🎯 Target group "${result.groupName}": ${ids.size} members (skip these)`);
+    return ids;
+  } catch (e: any) {
+    console.log(`⚠️ Cannot scan target group: ${e.message}`);
+    return cached?.memberIds || new Set();
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// FIND NEXT — Tìm người chưa xử lý, skip người đã ở group đích
 // ═══════════════════════════════════════════════════
 
 async function findNextPerson(
@@ -183,6 +210,9 @@ async function findNextPerson(
     for (const id of ids) allSentIds.add(id);
   }
 
+  // Lấy member IDs của group đích — skip người đã ở trong group rồi
+  const targetMemberIds = await getTargetGroupMemberIds(api, config);
+
   for (const groupLink of groups) {
     let members: GroupMember[];
     try {
@@ -193,15 +223,16 @@ async function findNextPerson(
     }
 
     for (const m of members) {
-      if (!allSentIds.has(m.id)) {
-        return { member: m, groupLink };
-      }
+      // Skip: đã gửi rồi HOẶC đã ở group đích rồi
+      if (allSentIds.has(m.id) || targetMemberIds.has(m.id)) continue;
+      return { member: m, groupLink };
     }
 
     // Group này hết người mới → tiếp tục group tiếp theo
     if (members.length > 0) {
       const doneInGroup = (progress.imageSent[groupLink] || []).length;
-      log(state.accountId, `✅ Đã gửi hết ${doneInGroup}/${members.length} member trong group ${groupLink.split('/').pop()}`);
+      const inTarget = members.filter(m => targetMemberIds.has(m.id)).length;
+      log(state.accountId, `✅ Group ${groupLink.split('/').pop()}: ${doneInGroup} sent, ${inTarget} already in target, ${members.length} total`);
     }
   }
 
@@ -212,8 +243,9 @@ async function findNextPerson(
     progress.friendRequested[groupLink] = [];
     progress.groupPulled[groupLink] = [];
   }
-  // Clear member cache để quét lại member mới
+  // Clear caches để quét lại member mới
   state.memberCache.clear();
+  targetGroupCache.clear();
   saveProgress(progress);
 
   // Thử lấy người đầu tiên từ group đầu tiên
