@@ -4,7 +4,7 @@
     "name": "Unknown",
     "label": "An NhiÃªn",
     "createdAt": "2026-03-16T07:10:09.795Z",
-    "lastLoginAt": "2026-03-22T12:06:25.970Z",
+    "lastLoginAt": "2026-03-22T12:08:10.109Z",
     "status": "active"
   },
   "credentials": {
@@ -35,8 +35,8 @@
           "secure": true,
           "httpOnly": true,
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.316Z",
-          "lastAccessed": "2026-03-22T12:06:25.316Z",
+          "creation": "2026-03-22T12:08:09.953Z",
+          "lastAccessed": "2026-03-22T12:08:09.953Z",
           "sameSite": "lax"
         },
         {
@@ -48,8 +48,8 @@
           "secure": true,
           "httpOnly": true,
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.317Z",
-          "lastAccessed": "2026-03-22T12:06:25.317Z",
+          "creation": "2026-03-22T12:08:09.954Z",
+          "lastAccessed": "2026-03-22T12:08:09.954Z",
           "sameSite": "lax"
         },
         {
@@ -58,8 +58,8 @@
           "domain": "zalo.me",
           "path": "/",
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.368Z",
-          "lastAccessed": "2026-03-22T12:06:25.874Z"
+          "creation": "2026-03-22T12:08:09.954Z",
+          "lastAccessed": "2026-03-22T12:08:10.107Z"
         },
         {
           "key": "zpsid",
@@ -70,8 +70,8 @@
           "secure": true,
           "httpOnly": true,
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.368Z",
-          "lastAccessed": "2026-03-22T12:06:25.874Z",
+          "creation": "2026-03-22T12:08:09.954Z",
+          "lastAccessed": "2026-03-22T12:08:10.107Z",
           "sameSite": "none"
         },
         {
@@ -80,8 +80,8 @@
           "domain": "id.zalo.me",
           "path": "/",
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.368Z",
-          "lastAccessed": "2026-03-22T12:06:25.368Z"
+          "creation": "2026-03-22T12:08:09.954Z",
+          "lastAccessed": "2026-03-22T12:08:09.954Z"
         },
         {
           "key": "zpsid",
@@ -92,8 +92,8 @@
           "secure": true,
           "httpOnly": true,
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.368Z",
-          "lastAccessed": "2026-03-22T12:06:25.368Z",
+          "creation": "2026-03-22T12:08:09.954Z",
+          "lastAccessed": "2026-03-22T12:08:09.954Z",
           "sameSite": "none"
         },
         {
@@ -104,33 +104,33 @@
           "path": "/",
           "secure": true,
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.368Z",
-          "lastAccessed": "2026-03-22T12:06:25.368Z",
+          "creation": "2026-03-22T12:08:09.955Z",
+          "lastAccessed": "2026-03-22T12:08:09.955Z",
           "sameSite": "none"
         },
         {
           "key": "zpw_sek",
           "value": "RBE3.453878401.a0.ayZDgCyWadPEWfzjxY2IThG2zntj6h0af4UdEQaLr0RsPi0tlsQh6FmFvXse7QzKicfEGituxIEs8KBQU4cITW",
-          "maxAge": 7775877,
+          "maxAge": 7775974,
           "domain": "chat.zalo.me",
           "path": "/",
           "secure": true,
           "httpOnly": true,
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.368Z",
-          "lastAccessed": "2026-03-22T12:06:25.874Z",
+          "creation": "2026-03-22T12:08:09.955Z",
+          "lastAccessed": "2026-03-22T12:08:10.107Z",
           "sameSite": "lax"
         },
         {
           "key": "app.event.zalo.me",
           "value": "4396681040846689421",
-          "expires": "2026-03-24T12:06:25.000Z",
+          "expires": "2026-03-24T12:08:09.000Z",
           "domain": "zalo.me",
           "path": "/",
           "httpOnly": true,
           "hostOnly": false,
-          "creation": "2026-03-22T12:06:25.369Z",
-          "lastAccessed": "2026-03-22T12:06:25.874Z"
+          "creation": "2026-03-22T12:08:09.955Z",
+          "lastAccessed": "2026-03-22T12:08:10.107Z"
         }
       ]
     },
@@ -2299,7 +2299,7 @@
         "sticker_suggest_max_hint_count": 1,
         "enable_hidden_chat": 1,
         "chat_media_auto_download": {
-          "t-md": "uprCUm3i8_ywiOGPGc_fltepHLiV-fW599Wzurn7K4La6_-X0yII1_y6_w7utAqc4o5XN0",
+          "t-md": "1IOXVdV5SwtSgkaSDKQvxPmeA5veqye_MpMQpZ4RYd_OzzYHijd8v1x0W6dka75a234E",
           "enable_new_domain": 1
         },
         "gif": {
@@ -3186,25 +3186,25 @@
       "public_ip": "74.220.52.2",
       "language": "vi",
       "zpw_ws": [
+        "wss://ws2-msg.chat.zalo.me",
         "wss://ws5-msg.chat.zalo.me",
         "wss://ws8-msg.chat.zalo.me",
         "wss://ws4-msg.chat.zalo.me",
-        "wss://ws3-msg.chat.zalo.me",
-        "wss://ws2-msg.chat.zalo.me",
-        "wss://ws1-msg.chat.zalo.me"
+        "wss://ws1-msg.chat.zalo.me",
+        "wss://ws3-msg.chat.zalo.me"
       ],
       "zpw_chts_new": [
-        "https://lp6-msg.chat.zalo.me",
-        "https://lp8-msg.chat.zalo.me",
-        "https://lp4-msg.chat.zalo.me",
-        "https://lp3-msg.chat.zalo.me",
         "https://lp5-msg.chat.zalo.me",
-        "https://lp9-msg.chat.zalo.me"
+        "https://lp6-msg.chat.zalo.me",
+        "https://lp3-msg.chat.zalo.me",
+        "https://lp9-msg.chat.zalo.me",
+        "https://lp8-msg.chat.zalo.me",
+        "https://lp4-msg.chat.zalo.me"
       ],
       "qos_url": "https://qos.talk.zing.vn/api/qos/uploadpc",
       "zfamily": {
-        "enk": "Qw9o/AYtjXYlHOgUsQAGD4Iytpagq10p7Fq00fagjqQ=",
-        "viewer_key": "651fef983ec94a9613d9.453878401.de11252271c5c4fefe5391a6643cfd2d.VkeAvI7UPhLzr120VLBuKJXwPPJDlro8vyaGeQGxAksnH709fsxBh9W1xdbP4RrVDYXCgFlkjTRTqYjxnEDaS2iXxHBA+E+TbBNq5eUaovrfZwOp3i29cYsE5OxXRWgR32hkg2RUWgTD9NGIYSP52w=="
+        "enk": "sCFePpEmPtn9ulsZ2Ts4nUhyB8lxFWhxLvxcja1dasg=",
+        "viewer_key": "3657c8b81be96fb636f9.453878401.7413c63c40764cf3a748aff305592b54.jpWSckBSFBl1dpj4b7gJdJcK0OA2lx4Up++BOPQEYP7X0j1YpsrkE2LvIWzOVCucsf1rJ+WHM5T5QRVp2jKH5hcTv+Qi6MHcjFWPWMpqIp1PbkoXqtJJncgj5uVPjz7N+0nOMGB5/14qIc4IEx5M+g=="
       },
       "support_page": "628538169794682812",
       "uid": "624477080503635119",
@@ -3221,8 +3221,8 @@
         "logInterval": 900
       },
       "auth_ext_info": {
-        "enk": "Ik8sWzOea2+yX6qjgFJS1g==",
-        "viewer_key": "1.clhSTHJGcFJEY2xHMEFZRnpPT2VVZ1NNZGlVSGNYNS1fR01YandnWkhyLUFReHhYZUFiVE51TGprLVlqalphQy1XTVotakYwRVk2MzBRRkstU0d2N3c1NGp5SnpuM2FKWjUyeXNfTlgzV0FDVjhGQnF5eTJUZkdDajlWWGVvdnBhMEVPa1V3RkFibDZJZm8tV1QwNlRqZjhkeC1IclhmY29ha1BlUHg5NnEzRFJRc1JhZ1dPTkM0RmhmVTZsSGpEbU5nUllmQlowWko5ODhROWtCeUJSVkMybFJneW5Xem1wTk14WFJaQ0ZNUlpSd0lraUQwYlBzQ3o="
+        "enk": "NnGcE1+Xj1SNw5FwmdxkCQ==",
+        "viewer_key": "1.clhSTHJGcFJEY2xHMEEtQVlmT3pEQm14Vzhob1cyMG1nR0FRc3lvUzNXTmlMRlV4bmZPSzFVREl5UkI3WU5ETWEzaGZlQmRfUzdsZkZrY0VhX2pwSFNqeF9Qd04tdEQ5dmNfc1dQX1VINVpjR3ljSGtWMThCRnVwX2lzQmQ2R2YtWnBJdXVJbU8wNmlUVFJhdy16Q0JCMXRyVU54d0wweWU3SkotX0pzS0hnZEtrVjEtOVRJMWdpbXZDdGlXYjROZ3FOSHFGWlNJNndaN3lwSnFlMTFEdmF6ei0zTS1LS2dmcWhudHpCcFRwbzlLRXhxc2t6bEZNQ3o="
       },
       "dkey": "7ca0551a63da57c8a948ec354fc58f2e",
       "zpw_service_map": {
@@ -3349,10 +3349,10 @@
           "https://zcld.chat.zalo.me"
         ],
         "chat": [
+          "https://tt-chat4-wpa.chat.zalo.me",
           "https://tt-chat1-wpa.chat.zalo.me",
           "https://tt-chat2-wpa.chat.zalo.me",
-          "https://tt-chat3-wpa.chat.zalo.me",
-          "https://tt-chat4-wpa.chat.zalo.me"
+          "https://tt-chat3-wpa.chat.zalo.me"
         ],
         "todoUrl": [
           "https://task.chat.zalo.me"
@@ -3367,8 +3367,8 @@
           "https://quickmessage.chat.zalo.me"
         ]
       },
-      "viewerkey": "1414765523394792046.1774181185651.305408f5a6319d1b481b9508fe38fab2",
-      "current_time": 1774181185,
+      "viewerkey": "1414765523394792046.1774181289983.cdd9d47fb805f3784b47b1309ffdca6c",
+      "current_time": 1774181289,
       "zalo_tracking": {
         "api_url": "https://trk-pcweb.api.zaloapp.com/tracking",
         "max_record_submit": 100,
@@ -4734,14 +4734,14 @@
         }
       },
       "zpw_chts": [
-        "https://lp6-msg.chat.zalo.me",
-        "https://lp8-msg.chat.zalo.me",
-        "https://lp4-msg.chat.zalo.me",
-        "https://lp3-msg.chat.zalo.me",
         "https://lp5-msg.chat.zalo.me",
-        "https://lp9-msg.chat.zalo.me"
+        "https://lp6-msg.chat.zalo.me",
+        "https://lp3-msg.chat.zalo.me",
+        "https://lp9-msg.chat.zalo.me",
+        "https://lp8-msg.chat.zalo.me",
+        "https://lp4-msg.chat.zalo.me"
       ],
-      "zpw_cht": "https://lp6-msg.chat.zalo.me",
+      "zpw_cht": "https://lp5-msg.chat.zalo.me",
       "zpw_ctrs_new": [
         "https://ws4-ctl.chat.zalo.me",
         "https://ws2-ctl.chat.zalo.me",
@@ -4786,8 +4786,8 @@
       },
       "user_mode": 0,
       "zcloud": {
-        "enk": "HmFHisgudWlW64jILr3q7W7girZqX8HwGL+DouVh97I=",
-        "viewer_key": "ee4466c3b792c3cd9a82.453878401.97b48dc289af813fa197ef67f0cde19f.m+meqo/SLYCYQoz2QWi4qem8u25GkzmAbTRV3Fk8EeUiaLTu+nmufgdSzcmARV1IhPbWeEp95XoXpGQ9ysEKa9OMhwuMkUM5PI0ZCTYYaXseK6zefWr6vjaCLe2Hjhr0X8wf40bxZkOeDL0+cx1ZXg=="
+        "enk": "jQT5FRRLmVSx8Uyt1zQcofODG61YHOZ6K8YyRdghUk0=",
+        "viewer_key": "c9daca2a197b6d24346b.453878401.9e391889bb63e09095fa3a24a47ffdd0.bKIFfr25ZvCCzXrJtNLIe0xzebcwaRadskFqm3cCVjFAWt2TVTj3eGVVhrsHwFO5QifWC40fI8r1uNVHr8XWwJrPQFVu11cqPlkMsCKoM+RwUL18VkYvtot3qFE2C/6ESTNXq6pipf5YkISChGHrdw=="
       },
       "zpw_ctrs": [
         "https://ws4-ctl.chat.zalo.me",
