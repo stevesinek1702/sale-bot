@@ -20,7 +20,7 @@ function hasGroups(accountId: string, config: BotConfig): boolean {
   return (config.accountSourceGroups?.[accountId]?.length || config.sourceGroupLinks.length) > 0;
 }
 
-/** Push config + credentials lên GitHub để persist qua deploy */
+/** Push config + credentials + progress lên GitHub để persist qua deploy */
 async function syncToGitHub(reason: string): Promise<void> {
   try {
     const files: Array<{ path: string; content: string }> = [];
@@ -42,6 +42,14 @@ async function syncToGitHub(reason: string): Promise<void> {
     if (fs.existsSync(accountsDir)) {
       for (const f of fs.readdirSync(accountsDir).filter(f => f.endsWith('.json'))) {
         files.push({ path: `src/accounts/${f}`, content: fs.readFileSync(`${accountsDir}/${f}`, 'utf-8') });
+      }
+    }
+
+    // Progress — persist qua deploy để không gửi lại người đã gửi
+    const progressDir = './data/progress';
+    if (fs.existsSync(progressDir)) {
+      for (const f of fs.readdirSync(progressDir).filter(f => f.endsWith('.json'))) {
+        files.push({ path: `src/progress/${f}`, content: fs.readFileSync(`${progressDir}/${f}`, 'utf-8') });
       }
     }
 
@@ -765,17 +773,14 @@ async function main() {
 
   console.log(`🏓 Self-ping enabled (mỗi 10 phút) → ${APP_URL}`);
 
-  // 6. Auto-save progress to GitHub at 23h VN daily
+  // 6. Auto-save progress to GitHub every 30 min — persist qua deploy
   setInterval(async () => {
-    const vnHour = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })).getHours();
-    const vnMin = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })).getMinutes();
-    // Run at 23:00-23:09 VN time (check every 10 min so we hit this window once)
-    if (vnHour === 23 && vnMin < 10) {
-      console.log('💾 Auto-save: saving progress to GitHub...');
-      await syncToGitHub('auto-save daily 23h');
-    }
-  }, 10 * 60 * 1000);
-  console.log('💾 Auto-save enabled (daily at 23h VN)');
+    try {
+      console.log('💾 Auto-save: syncing progress to GitHub...');
+      await syncToGitHub('auto-save progress');
+    } catch {}
+  }, 30 * 60 * 1000);
+  console.log('💾 Auto-save enabled (every 30 min)');
 
   console.log('👂 Bot đang chạy...');
 }
