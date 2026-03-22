@@ -236,23 +236,25 @@ async function findNextPerson(
     }
   }
 
-  // Tất cả groups đều hết → reset tất cả và bắt đầu vòng mới
-  log(state.accountId, `🔄 Hết member trong TẤT CẢ ${groups.length} groups (đã gửi ${allSentIds.size} người) → reset vòng mới`);
+  // Tất cả groups đều hết → reset và bắt đầu vòng mới từ đầu
+  log(state.accountId, `🔄 Done all ${groups.length} groups (sent ${allSentIds.size}). Resetting for new round.`);
   for (const groupLink of groups) {
     progress.imageSent[groupLink] = [];
     progress.friendRequested[groupLink] = [];
     progress.groupPulled[groupLink] = [];
   }
-  // Clear caches để quét lại member mới
   state.memberCache.clear();
   targetGroupCache.clear();
   saveProgress(progress);
 
-  // Thử lấy người đầu tiên từ group đầu tiên
+  // Lấy người đầu tiên từ group đầu tiên
+  const newTargetIds = await getTargetGroupMemberIds(api, config);
   for (const groupLink of groups) {
     try {
       const members = await getMembers(api, state, groupLink);
-      if (members.length > 0) return { member: members[0], groupLink };
+      for (const m of members) {
+        if (!newTargetIds.has(m.id)) return { member: m, groupLink };
+      }
     } catch {}
   }
   return null;
